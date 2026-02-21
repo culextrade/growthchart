@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant_id String   @default(cuid())
+  patients  Patient[]
+}
+
+model Patient {
+  id          String   @id @default(cuid())
+  name        String
+  dob         DateTime
+  gender      String   // "male" | "female"
+  parentName  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant_id   String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  measurements Measurement[]
+}
+
+model Measurement {
+  id                String   @id @default(cuid())
+  date              DateTime @default(now())
+  weight            Float?   // in kg
+  height            Float?   // in cm
+  headCircumference Float?   // in cm
+  tenant_id         String
+  patientId         String
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
