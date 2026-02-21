@@ -356,3 +356,80 @@ export function getWaterlowClassification(
         heightAge: result.heightAge
     };
 }
+
+// --- TREND ANALYSIS ---
+
+export interface TrendResult {
+    status: 'improving' | 'stable' | 'faltering' | 'concerning' | 'neutral';
+    message: string;
+    description: string;
+    velocity?: number; // per month
+}
+
+export function getGrowthTrend(
+    measurements: { weight: number; ageMonths: number }[],
+    gender: 'male' | 'female'
+): TrendResult {
+    if (measurements.length < 2) {
+        return { status: 'neutral', message: 'Data Berkelanjutan Belum Cukup', description: 'Butuh minimal 2 data untuk menganalisis tren pertumbuhan.' };
+    }
+
+    // Sort by age
+    const sorted = [...measurements].sort((a, b) => a.ageMonths - b.ageMonths);
+    const latest = sorted[sorted.length - 1];
+    const previous = sorted[sorted.length - 2];
+
+    const zLatest = calculateZScore(latest.weight, latest.ageMonths, gender, 'weight');
+    const zPrevious = calculateZScore(previous.weight, previous.ageMonths, gender, 'weight');
+
+    const zDiff = zLatest - zPrevious;
+    const ageDiff = latest.ageMonths - previous.ageMonths;
+
+    if (ageDiff <= 0) return { status: 'neutral', message: 'Data Invalid', description: 'Selisih umur tidak valid.' };
+
+    const velocity = (latest.weight - previous.weight) / ageDiff; // kg/month
+
+    // Growth Faltering: Z-Score drop > 0.67 is often clinically significant
+    if (zDiff < -0.67) {
+        return {
+            status: 'faltering',
+            message: 'Waspada: Tren Melambat',
+            description: `Terjadi penurunan Z-Score sebesar ${Math.abs(zDiff).toFixed(2)} SD sejak kunjungan terakhir. Risiko growth faltering.`,
+            velocity
+        };
+    }
+
+    if (zDiff > 1.0) {
+        return {
+            status: 'concerning',
+            message: 'Waspada: Kenaikan Terlalu Cepat',
+            description: `Z-Score naik ${zDiff.toFixed(2)} SD. Perlu evaluasi diet untuk mencegah obesitas.`,
+            velocity
+        };
+    }
+
+    if (Math.abs(zDiff) < 0.2) {
+        return {
+            status: 'stable',
+            message: 'Pertumbuhan Stabil',
+            description: 'Mengikuti kurva dengan baik.',
+            velocity
+        };
+    }
+
+    if (zDiff > 0 && zPrevious < -2) {
+        return {
+            status: 'improving',
+            message: 'Kabar Baik: Ada Perbaikan',
+            description: 'Anak mulai mengejar (catch-up growth). Teruskan intervensi nutrisi.',
+            velocity
+        };
+    }
+
+    return {
+        status: 'neutral',
+        message: 'Tren Normal',
+        description: 'Anak tumbuh sesuai jalur pertumbuhannya.',
+        velocity
+    };
+}
