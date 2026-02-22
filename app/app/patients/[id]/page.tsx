@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from "next/link";
 import { ArrowLeft, Plus, Activity, Ruler, Scale, Info, TrendingUp, Weight } from "lucide-react";
 import { getPatient, addMeasurement } from "../../actions";

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from "next/link";
 import { Plus, User } from "lucide-react";
 import { getPatients, createPatient } from "../actions";
