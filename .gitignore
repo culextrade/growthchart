@@ -3,6 +3,7 @@ node_modules/
 .vercel
 .agent/
 .vscode/
+.env
 .env.local
 .env*.local
 *.db
