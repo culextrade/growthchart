@@ -369,15 +369,25 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                                     <li>• &lt; -3 SD: Severely Underweight</li>
                                                 </ul>
                                             </div>
-                                            <div>
-                                                <span className="font-medium block mb-1">BB/TB & IMT/U:</span>
+                                            <div className="col-span-2">
+                                                <span className="font-medium block mb-1">BB/TB (&lt;5 tahun):</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; 3 SD: Obese</li>
+                                                    <li>• 2 to 3 SD: Overweight</li>
+                                                    <li>• -2 to 2 SD: Normal</li>
+                                                    <li>• -3 to -2 SD: Wasted</li>
+                                                    <li>• &lt; -3 SD: Severely Wasted</li>
+                                                </ul>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <span className="font-medium block mb-1">IMT/U (0-19 tahun):</span>
                                                 <ul className="space-y-0.5">
                                                     <li>• &gt; 3 SD: Obese</li>
                                                     <li>• 2 to 3 SD: Overweight</li>
                                                     <li>• 1 to 2 SD: Risk of Overweight</li>
                                                     <li>• -2 to 1 SD: Normal</li>
-                                                    <li>• -3 to -2 SD: Wasted</li>
-                                                    <li>• &lt; -3 SD: Severely Wasted</li>
+                                                    <li>• -3 to -2 SD: Thinness</li>
+                                                    <li>• &lt; -3 SD: Severe Thinness</li>
                                                 </ul>
                                             </div>
                                             <div>

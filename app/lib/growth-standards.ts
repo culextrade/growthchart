@@ -253,7 +253,6 @@ function interpretWeightForHeight(z: number, isCDC: boolean): string {
     }
     if (z > 3) return "Obese (Obesitas)";
     if (z > 2) return "Overweight (Gizi Lebih)";
-    if (z > 1) return "Possible Risk of Overweight";
     if (z >= -2) return "Normal (Gizi Baik)";
     if (z >= -3) return "Wasted (Gizi Kurang)";
     return "Severely Wasted (Gizi Buruk)";
@@ -268,10 +267,10 @@ function interpretBMIForAge(z: number, isCDC: boolean): string {
     }
     if (z > 3) return "Obese (Obesitas)";
     if (z > 2) return "Overweight (Gizi Lebih)";
-    if (z > 1) return "Possible Risk of Overweight";
+    if (z > 1) return "Risk of Overweight";
     if (z >= -2) return "Normal (Gizi Baik)";
-    if (z >= -3) return "Wasted (Gizi Kurang)";
-    return "Severely Wasted (Gizi Buruk)";
+    if (z >= -3) return "Thinness (Kurus)";
+    return "Severe Thinness (Sangat Kurus)";
 }
 
 function interpretWaterlow(percent: number): string {
