@@ -18,11 +18,19 @@ function calculateAgeMonths(dob: Date, measurementDate: Date) {
 // Helper to get status color
 function getStatusColor(status: string): string {
     const lowerStatus = status.toLowerCase();
-    if (lowerStatus.includes('severely') || lowerStatus.includes('buruk')) return 'text-red-600';
-    if (lowerStatus.includes('wasted') || lowerStatus.includes('kurang') || lowerStatus.includes('stunted') || lowerStatus.includes('underweight')) return 'text-orange-500';
-    if (lowerStatus.includes('overweight') || lowerStatus.includes('risk') || lowerStatus.includes('risiko')) return 'text-yellow-600';
-    if (lowerStatus.includes('obese') || lowerStatus.includes('obesitas')) return 'text-red-500';
-    return 'text-green-600';
+
+    // Normal / Healthy states
+    if (lowerStatus === 'normal' || lowerStatus.includes('gizi baik') || lowerStatus.includes('healthy weight') || lowerStatus === 'tidak digunakan') {
+        return 'text-green-600';
+    }
+
+    // Graded warnings
+    if (lowerStatus.includes('severely') || lowerStatus.includes('buruk') || lowerStatus.includes('obese') || lowerStatus.includes('obesitas') || lowerStatus.includes('obesity')) return 'text-red-600';
+    if (lowerStatus.includes('wasted') || lowerStatus.includes('kurang') || lowerStatus.includes('stunted') || lowerStatus.includes('underweight') || lowerStatus.includes('short stature')) return 'text-orange-500';
+    if (lowerStatus.includes('overweight') || lowerStatus.includes('risk') || lowerStatus.includes('risiko') || lowerStatus.includes('tall')) return 'text-yellow-600';
+
+    // Default any other unhandled abnormal state to red
+    return 'text-red-600';
 }
 
 // Helper for trend styles
