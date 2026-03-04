@@ -2,8 +2,44 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function generateMeasurements(patientId: string, tenantId: string, dob: Date, months: number, isBoy: boolean) {
+    const measurements = [];
+    let currentHeight = 50; // cm
+    let currentWeight = 3.3; // kg
+
+    for (let m = 0; m <= months; m += 3) {
+        const date = new Date(dob);
+        date.setMonth(date.getMonth() + m);
+
+        // Simple growth curve simulation
+        if (m <= 12) {
+            currentHeight += 2.1;
+            currentWeight += 0.6;
+        } else if (m <= 36) {
+            currentHeight += 0.8;
+            currentWeight += 0.2;
+        } else {
+            currentHeight += 0.5;
+            currentWeight += 0.15;
+        }
+
+        // Add some random variation (abnormal/normal mix)
+        const variationH = (Math.random() * 2) - 1;
+        const variationW = (Math.random() * 1) - 0.5;
+
+        measurements.push({
+            patientId,
+            tenant_id: tenantId,
+            date,
+            height: parseFloat((currentHeight + variationH).toFixed(1)),
+            weight: parseFloat((currentWeight + variationW).toFixed(1)),
+        });
+    }
+    return measurements;
+}
+
 async function main() {
-    // Create demo user
+    // Ensure we have a user
     const user = await prisma.user.upsert({
         where: { email: "demo@example.com" },
         update: {},
@@ -14,63 +50,79 @@ async function main() {
         },
     });
 
-    // Create sample patients only if none exist
-    const count = await prisma.patient.count();
-    if (count > 0) {
-        console.log("Seed data already exists, skipping.");
-        return;
-    }
+    console.log("Clearing old dummy data...");
+    await prisma.patient.deleteMany();
 
-    // Boy patient — ~2 years old
-    const boy = await prisma.patient.create({
+    const today = new Date();
+
+    // 3 Years Old = 36 months
+    const dob3Years = new Date(today);
+    dob3Years.setFullYear(today.getFullYear() - 3);
+
+    // 7 Years Old = 84 months
+    const dob7Years = new Date(today);
+    dob7Years.setFullYear(today.getFullYear() - 7);
+
+    console.log("Creating 4 new dummy patients...");
+
+    // 1. Boy - 3 Years
+    const boy3 = await prisma.patient.create({
         data: {
-            name: "Ahmad Rizki",
-            dob: new Date("2024-01-15"),
+            name: "Bima (3 Thn)",
+            dob: dob3Years,
             gender: "male",
-            parentName: "Budi Santoso",
+            parentName: "Ayah Bima",
             userId: user.id,
             tenant_id: user.tenant_id,
         },
     });
 
-    // Girl patient — ~1 year old
-    const girl = await prisma.patient.create({
+    // 2. Boy - 7 Years
+    const boy7 = await prisma.patient.create({
         data: {
-            name: "Siti Nurhaliza",
-            dob: new Date("2025-02-01"),
-            gender: "female",
-            parentName: "Dewi Sartika",
+            name: "Arya (7 Thn)",
+            dob: dob7Years,
+            gender: "male",
+            parentName: "Ayah Arya",
             userId: user.id,
             tenant_id: user.tenant_id,
         },
     });
 
-    // Measurements for Ahmad (boy)
-    await prisma.measurement.createMany({
-        data: [
-            { patientId: boy.id, date: new Date("2024-01-15"), weight: 3.3, height: 49.5, tenant_id: user.tenant_id },
-            { patientId: boy.id, date: new Date("2024-04-15"), weight: 6.2, height: 61.0, tenant_id: user.tenant_id },
-            { patientId: boy.id, date: new Date("2024-07-15"), weight: 7.8, height: 67.5, tenant_id: user.tenant_id },
-            { patientId: boy.id, date: new Date("2024-10-15"), weight: 9.1, height: 72.0, tenant_id: user.tenant_id },
-            { patientId: boy.id, date: new Date("2025-01-15"), weight: 10.2, height: 76.5, tenant_id: user.tenant_id },
-            { patientId: boy.id, date: new Date("2025-07-15"), weight: 11.8, height: 84.0, tenant_id: user.tenant_id },
-            { patientId: boy.id, date: new Date("2026-01-15"), weight: 12.5, height: 87.0, tenant_id: user.tenant_id },
-        ],
+    // 3. Girl - 3 Years
+    const girl3 = await prisma.patient.create({
+        data: {
+            name: "Cinta (3 Thn)",
+            dob: dob3Years,
+            gender: "female",
+            parentName: "Ibu Cinta",
+            userId: user.id,
+            tenant_id: user.tenant_id,
+        },
     });
 
-    // Measurements for Siti (girl)
-    await prisma.measurement.createMany({
-        data: [
-            { patientId: girl.id, date: new Date("2025-02-01"), weight: 3.1, height: 48.5, tenant_id: user.tenant_id },
-            { patientId: girl.id, date: new Date("2025-05-01"), weight: 5.5, height: 59.0, tenant_id: user.tenant_id },
-            { patientId: girl.id, date: new Date("2025-08-01"), weight: 7.2, height: 65.5, tenant_id: user.tenant_id },
-            { patientId: girl.id, date: new Date("2025-11-01"), weight: 8.5, height: 71.0, tenant_id: user.tenant_id },
-            { patientId: girl.id, date: new Date("2026-02-01"), weight: 9.5, height: 74.5, tenant_id: user.tenant_id },
-        ],
+    // 4. Girl - 7 Years
+    const girl7 = await prisma.patient.create({
+        data: {
+            name: "Dian (7 Thn)",
+            dob: dob7Years,
+            gender: "female",
+            parentName: "Ibu Dian",
+            userId: user.id,
+            tenant_id: user.tenant_id,
+        },
     });
 
-    console.log("Seed data created successfully!");
-    console.log(`Created ${2} patients with measurements.`);
+    console.log("Generating 3-monthly measurements...");
+
+    const m1 = generateMeasurements(boy3.id, user.tenant_id, dob3Years, 36, true);
+    const m2 = generateMeasurements(boy7.id, user.tenant_id, dob7Years, 84, true);
+    const m3 = generateMeasurements(girl3.id, user.tenant_id, dob3Years, 36, false);
+    const m4 = generateMeasurements(girl7.id, user.tenant_id, dob7Years, 84, false);
+
+    await prisma.measurement.createMany({ data: [...m1, ...m2, ...m3, ...m4] });
+
+    console.log("Seed data created successfully with 3-monthly data points!");
 }
 
 main()

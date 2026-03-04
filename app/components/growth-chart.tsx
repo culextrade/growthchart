@@ -38,9 +38,10 @@ interface GrowthChartProps {
     patientName?: string;
     patientDob?: string;
     patientMrn?: string;
+    showBmi?: boolean;
 }
 
-type ChartType = 'weight' | 'height' | 'bmi';
+type ChartType = 'weight' | 'height' | 'bmi' | 'weightForHeight';
 
 // Custom Tooltip Component
 interface CustomTooltipProps {
@@ -59,8 +60,8 @@ function CustomTooltip({ active, payload, label, isCDC, userPoints, chartType, g
     // Find if there's a patient measurement at this age (within tolerance)
     const patientPoint = userPoints.find(p => Math.abs(p.age - label) < (isCDC ? 1 : 0.5));
 
-    const unit = chartType === 'weight' ? 'kg' : chartType === 'height' ? 'cm' : 'kg/m²';
-    const ageLabel = isCDC ? `${(label / 12).toFixed(1)} years (${label}m)` : `${label} months`;
+    const unit = chartType === 'weight' ? 'kg' : chartType === 'height' ? 'cm' : chartType === 'weightForHeight' ? 'kg' : 'kg/m²';
+    const ageLabel = chartType === 'weightForHeight' ? `Tinggi: ${label} cm` : isCDC ? `${(label / 12).toFixed(1)} years (${label}m)` : `${label} months`;
 
     return (
         <div className="bg-white/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-lg min-w-[200px] z-50">
@@ -103,43 +104,48 @@ function CustomTooltip({ active, payload, label, isCDC, userPoints, chartType, g
     );
 }
 
-export function GrowthChart({ gender, measurements, patientName, patientDob, patientMrn }: GrowthChartProps) {
+export function GrowthChart({ gender, measurements, patientName, patientDob, patientMrn, showBmi = true }: GrowthChartProps) {
     const [chartType, setChartType] = useState<ChartType>('weight');
     const [showPrintPreview, setShowPrintPreview] = useState(false);
+
+    // If BMI tab is hidden and user was on it, reset to weight
+    const effectiveChartType = (!showBmi && chartType === 'bmi') ? 'weight' : chartType;
     const maxAge = useMemo(() => Math.max(0, ...measurements.map(m => m.ageMonths)), [measurements]);
 
     // Default view based on age, but allow override
     const [viewMode, setViewMode] = useState<'auto' | 'who' | 'cdc'>('auto');
 
     const isCDC = useMemo(() => {
+        if (effectiveChartType === 'weightForHeight') return false; // WHO only
         if (viewMode === 'who') return false;
         if (viewMode === 'cdc') return true;
         return maxAge > 60;
-    }, [viewMode, maxAge]);
+    }, [viewMode, maxAge, effectiveChartType]);
 
     // WHO data (for non-CDC mode)
     const whoData = useMemo(() => {
         if (isCDC) return [];
         const representativeAge = 10;
-        return getStandardData(chartType, gender, representativeAge);
-    }, [chartType, gender, isCDC]);
+        return getStandardData(effectiveChartType, gender, representativeAge);
+    }, [effectiveChartType, gender, isCDC]);
 
     // CDC percentile data
     const cdcPercentileData = useMemo(() => {
         if (!isCDC) return [];
-        const source = chartType === 'weight'
+        const source = effectiveChartType === 'weight'
             ? CDC_WEIGHT_PERCENTILES
-            : chartType === 'height'
+            : effectiveChartType === 'height'
                 ? CDC_HEIGHT_PERCENTILES
                 : CDC_BMI_PERCENTILES;
         return [...source[gender]] as any[];
-    }, [chartType, gender, isCDC]);
+    }, [effectiveChartType, gender, isCDC]);
 
     const yLabel = useMemo(() => {
-        if (chartType === 'height') return 'Tinggi (cm)';
-        if (chartType === 'bmi') return 'IMT (kg/m²)';
+        if (effectiveChartType === 'height') return 'Tinggi (cm)';
+        if (effectiveChartType === 'bmi') return 'IMT (kg/m²)';
+        if (effectiveChartType === 'weightForHeight') return 'Berat (kg)';
         return 'Berat (kg)';
-    }, [chartType]);
+    }, [effectiveChartType]);
 
     // Safe LMS percentile calculation (WHO mode)
     const safeGetP = (L: number, M: number, S: number, z: number): number => {
@@ -165,10 +171,10 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                 return base;
             });
         }
-        return whoData.map((d) => {
+        return whoData.map((d: any) => {
             const p = (z: number) => safeGetP(d.L, d.M, d.S, z);
             return {
-                age: d.age_months,
+                age: d.length_cm !== undefined ? d.length_cm : d.age_months,
                 s3pos: p(3), s2pos: p(2), s1pos: p(1),
                 median: d.M,
                 s1neg: p(-1), s2neg: p(-2), s3neg: p(-3),
@@ -179,27 +185,42 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
     const userPoints = useMemo(() => {
         return measurements
             .filter(m => {
-                const val = chartType === 'weight' ? m.weight : chartType === 'height' ? m.height : m.bmi;
-                return val !== undefined && val > 0;
+                const val = effectiveChartType === 'weight' ? m.weight : effectiveChartType === 'height' ? m.height : effectiveChartType === 'weightForHeight' ? m.weight : m.bmi;
+                if (val === undefined || val <= 0) return false;
+
+                if (effectiveChartType === 'weightForHeight') {
+                    if (!m.height || m.height <= 0) return false;
+                    return true;
+                }
+
+                // If WHO, only show measurements <= 60 months
+                if (!isCDC && m.ageMonths > 60) return false;
+
+                // If CDC, only show measurements >= 60 months (actually we can show 24+ but we want CDC standard to not mix if patient has both data points overlapping 5 yrs)
+                // The task description says "plot usia <5 tahun jangan keluar di chart CDC"
+                if (isCDC && m.ageMonths < 60) return false;
+
+                return true;
             })
             .map(m => {
-                const val = chartType === 'weight' ? m.weight : chartType === 'height' ? m.height : m.bmi as number;
+                const val = effectiveChartType === 'weight' ? m.weight : effectiveChartType === 'height' ? m.height : effectiveChartType === 'weightForHeight' ? m.weight : (m.bmi as number);
+                const xVal = effectiveChartType === 'weightForHeight' ? (m.height as number) : m.ageMonths;
                 return {
-                    age: m.ageMonths,
+                    age: xVal,
                     detailedAge: m.detailedAge,
                     val: val,
-                    zScore: calculateZScore(val, m.ageMonths, gender, chartType)
+                    zScore: calculateZScore(val, xVal, gender, effectiveChartType)
                 };
             })
             .sort((a, b) => a.age - b.age);
-    }, [measurements, chartType, gender]);
+    }, [measurements, effectiveChartType, gender, isCDC]);
 
     // Safety check: if no data, show message
     if (chartData.length === 0) {
         return <div className="w-full h-[400px] flex items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border">No growth data available</div>;
     }
 
-    const xDomain = isCDC ? [24, 240] : [0, 60]; // 2-20y vs 0-5y
+    const xDomain = effectiveChartType === 'weightForHeight' ? [45, 120] : isCDC ? [24, 240] : [0, 60];
 
     return (
         <>
@@ -207,24 +228,26 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                 <div className="p-4 border-b bg-muted/30">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h3 className="text-lg font-bold text-foreground capitalize">Kurva Pertumbuhan {chartType}</h3>
+                            <h3 className="text-lg font-bold text-foreground capitalize">Kurva Pertumbuhan {effectiveChartType}</h3>
                             <p className="text-xs text-muted-foreground">Standard: {isCDC ? 'CDC (2-20 thn)' : 'WHO (0-5 thn)'}</p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex bg-muted p-1 rounded-lg">
-                                {(['weight', 'height', 'bmi'] as const).map((type) => (
-                                    <button
-                                        key={type}
-                                        onClick={() => setChartType(type)}
-                                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${chartType === type
-                                            ? 'bg-background shadow-sm text-primary'
-                                            : 'text-muted-foreground hover:text-foreground'
-                                            }`}
-                                    >
-                                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                                    </button>
-                                ))}
+                                {(['weight', 'height', 'bmi', 'weightForHeight'] as const)
+                                    .filter(type => type !== 'bmi' || showBmi)
+                                    .map((type) => (
+                                        <button
+                                            key={type}
+                                            onClick={() => setChartType(type)}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${effectiveChartType === type
+                                                ? 'bg-background shadow-sm text-primary'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                        >
+                                            {type === 'weightForHeight' ? 'BB/TB' : type.charAt(0).toUpperCase() + type.slice(1)}
+                                        </button>
+                                    ))}
                             </div>
 
                             <div className="flex bg-muted p-1 rounded-lg">
@@ -296,11 +319,11 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                                     dataKey="age"
                                     type="number"
                                     domain={xDomain}
-                                    ticks={isCDC ? [24, 48, 72, 96, 120, 144, 168, 192, 216, 240] : [0, 12, 24, 36, 48, 60]}
-                                    tickFormatter={(m) => isCDC ? `${m / 12}y` : `${m}m`}
+                                    ticks={effectiveChartType === 'weightForHeight' ? [45, 55, 65, 75, 85, 95, 105, 115] : isCDC ? [24, 48, 72, 96, 120, 144, 168, 192, 216, 240] : [0, 12, 24, 36, 48, 60]}
+                                    tickFormatter={(m) => effectiveChartType === 'weightForHeight' ? `${m}cm` : isCDC ? `${m / 12}y` : `${m}m`}
                                     tick={{ fontSize: 11, fill: '#64748b' }}
                                     axisLine={{ stroke: '#cbd5e1' }}
-                                    label={{ value: isCDC ? "Age (Years)" : "Age (Months)", position: "insideBottom", offset: -10, fontSize: 12, fill: '#64748b' }}
+                                    label={{ value: effectiveChartType === 'weightForHeight' ? "Tinggi (cm)" : isCDC ? "Usia (Tahun)" : "Usia (Bulan)", position: "insideBottom", offset: -10, fontSize: 12, fill: '#64748b' }}
                                 />
                                 <YAxis
                                     domain={['dataMin - 1', 'dataMax + 1']}
@@ -317,7 +340,7 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                                             gender={gender}
                                             isCDC={isCDC}
                                             userPoints={userPoints}
-                                            chartType={chartType}
+                                            chartType={effectiveChartType}
                                         />
                                     }
                                 />
@@ -393,7 +416,7 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                     <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-bold flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-primary"></span>
-                            Status Terkini: {chartType}
+                            Status Terkini: {effectiveChartType}
                         </h4>
                         {userPoints.length > 0 && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${Math.abs(userPoints[userPoints.length - 1].zScore || 0) > 2 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
@@ -407,7 +430,7 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                             <div key={i} className="bg-white p-3 rounded-lg border shadow-sm flex flex-col gap-1">
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase">{p.detailedAge || `${p.age}m`}</span>
                                 <div className="flex justify-between items-end">
-                                    <span className="text-sm font-extrabold">{p.val?.toFixed(2)} <span className="font-normal text-muted-foreground text-xs">{chartType === 'weight' ? 'kg' : chartType === 'height' ? 'cm' : ''}</span></span>
+                                    <span className="text-sm font-extrabold">{p.val?.toFixed(2)} <span className="font-normal text-muted-foreground text-xs">{effectiveChartType === 'weight' || effectiveChartType === 'weightForHeight' ? 'kg' : effectiveChartType === 'height' ? 'cm' : ''}</span></span>
                                     <span className={`text-[10px] font-bold ${Math.abs(p.zScore || 0) > 2 ? 'text-red-500' : 'text-primary'}`}>
                                         Z: {p.zScore?.toFixed(2)}
                                     </span>
@@ -423,15 +446,15 @@ export function GrowthChart({ gender, measurements, patientName, patientDob, pat
                 showPrintPreview && isCDC && (
                     <CDCPrintChart
                         gender={gender}
-                        chartType={chartType}
+                        chartType={effectiveChartType as 'weight' | 'height' | 'bmi'}
                         measurements={measurements
                             .filter(m => {
-                                const val = chartType === 'weight' ? m.weight : chartType === 'height' ? m.height : m.bmi;
+                                const val = effectiveChartType === 'weight' ? m.weight : effectiveChartType === 'height' ? m.height : m.bmi;
                                 return val !== undefined && val > 0;
                             })
                             .map(m => ({
                                 ageMonths: m.ageMonths,
-                                value: (chartType === 'weight' ? m.weight : chartType === 'height' ? m.height : m.bmi) as number,
+                                value: (effectiveChartType === 'weight' ? m.weight : effectiveChartType === 'height' ? m.height : m.bmi) as number,
                                 date: m.date,
                             }))}
                         patient={patientName ? {

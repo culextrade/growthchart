@@ -13,14 +13,18 @@ datasource db {
 
 model User {
   id        String   @id @default(cuid())
-  email     String   @unique
+  email     String?  @unique
+  username  String?  @unique
+  role      String   @default("USER") // "USER" or "SUPERADMIN"
   password  String
   name      String?
+  isLocked  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tenant_id String   @default(cuid())
   patients  Patient[]
 }
+
 
 model Patient {
   id          String   @id @default(cuid())

@@ -84,22 +84,24 @@ function interpolateLMS(value: number, data: { val: number } & any, key: string)
 
 
 // Modified to switch based on Age
-export function getStandardData(metric: 'weight' | 'height' | 'bmi', gender: 'male' | 'female', ageMonths: number = 0) {
+export function getStandardData(metric: 'weight' | 'height' | 'bmi' | 'weightForHeight', gender: 'male' | 'female', ageMonths: number = 0) {
     const isCDC = ageMonths > 60; // Over 5 years
 
     if (metric === 'weight') return !isCDC ? (gender === 'male' ? WHO_BOYS_WEIGHT : WHO_GIRLS_WEIGHT) : CDC_WEIGHT_DATA[gender] as LMS[];
     if (metric === 'height') return !isCDC ? (gender === 'male' ? WHO_BOYS_HEIGHT : WHO_GIRLS_HEIGHT) : CDC_HEIGHT_DATA[gender] as LMS[];
     if (metric === 'bmi') return !isCDC ? (gender === 'male' ? WHO_BOYS_BMI : WHO_GIRLS_BMI) : CDC_BMI_DATA[gender] as LMS[];
 
+    if (metric === 'weightForHeight') return gender === 'male' ? WHO_BOYS_WL : WHO_GIRLS_WL;
+
     return WHO_BOYS_WEIGHT; // Fallback
 }
 
-export function calculateZScore(measurement: number, ageMonths: number, gender: 'male' | 'female', metric: 'weight' | 'height' | 'bmi'): number {
+export function calculateZScore(measurement: number, ageMonthsOrHeight: number, gender: 'male' | 'female', metric: 'weight' | 'height' | 'bmi' | 'weightForHeight'): number {
     // Pass ageMonths so we know which standard to use
-    const data = getStandardData(metric, gender, ageMonths);
+    const data = getStandardData(metric, gender, ageMonthsOrHeight);
 
-    const mapped = data.map(d => ({ ...d, val: d.age_months }));
-    const lms = interpolateLMS(ageMonths, mapped as any, 'age_months');
+    const mapped = data.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const lms = interpolateLMS(ageMonthsOrHeight, mapped as any, 'val');
 
     const { L, M, S } = lms;
 
@@ -110,10 +112,10 @@ export function calculateZScore(measurement: number, ageMonths: number, gender: 
     return (Math.pow(measurement / M, L) - 1) / (L * S);
 }
 
-export function getMeasurementForZScore(z: number, ageMonths: number, gender: 'male' | 'female', metric: 'weight' | 'height' | 'bmi' = 'weight'): number {
+export function getMeasurementForZScore(z: number, ageMonths: number, gender: 'male' | 'female', metric: 'weight' | 'height' | 'bmi' | 'weightForHeight' = 'weight'): number {
     const data = getStandardData(metric, gender, ageMonths);
-    const mapped = data.map(d => ({ ...d, val: d.age_months }));
-    const lms = interpolateLMS(ageMonths, mapped as any, 'age_months');
+    const mapped = data.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const lms = interpolateLMS(ageMonths, mapped as any, 'val');
 
     const { L, M, S } = lms;
 
@@ -168,27 +170,33 @@ export function calculateIdealBodyWeight(heightCm: number, gender: 'male' | 'fem
     const hAge = calculateHeightAge(heightCm, gender);
     const weightData = getStandardData('weight', gender, hAge);
     // This finds weight for Height Age.
-    const mappedW = weightData.map(d => ({ ...d, val: d.age_months }));
-    const lmsW = interpolateLMS(hAge, mappedW as any, 'age_months');
+    const mappedW = weightData.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const lmsW = interpolateLMS(hAge, mappedW as any, 'val');
     return lmsW.M;
 }
 
 export interface InterpretationResult {
+    isCDC: boolean;
+
     // Z-Score based interpretations (WHO)
     heightForAge: string;        // TB/U
     heightForAgeZScore: number;
+    heightForAgePercentile: number;
     heightForAgeReason: string;
 
     weightForAge: string;        // BB/U
     weightForAgeZScore: number;
+    weightForAgePercentile: number;
     weightForAgeReason: string;
 
     weightForHeight: string;     // BB/TB (Wasting)
     weightForHeightZScore: number;
+    weightForHeightPercentile: number;
     weightForHeightReason: string;
 
     bmiForAge: string;           // IMT/U
     bmiForAgeZScore: number;
+    bmiForAgePercentile: number;
     bmiForAgeReason: string;
 
     // Waterlow classification (percentage based)
@@ -201,22 +209,48 @@ export interface InterpretationResult {
     heightAge: number;
 }
 
+function zScoreToPercentile(z: number): number {
+    if (isNaN(z)) return 0;
+    // Approximation of standard normal CDF
+    const k = 1 / (1 + 0.2316419 * Math.abs(z));
+    const a1 = 0.31938153;
+    const a2 = -0.356563782;
+    const a3 = 1.781477937;
+    const a4 = -1.821255978;
+    const a5 = 1.330274429;
+    const p = 1 - (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * z * z) * (k * (a1 + k * (a2 + k * (a3 + k * (a4 + k * a5)))));
+    const cdf = z > 0 ? p : 1 - p;
+    return cdf * 100;
+}
+
 // Z-Score interpretation helpers
-function interpretHeightForAge(z: number): string {
+function interpretHeightForAge(z: number, isCDC: boolean): string {
+    if (isCDC) {
+        if (z < -1.645) return "Short Stature (< P5)";
+        return "Normal";
+    }
     if (z > 3) return "Very Tall (Perawakan Sangat Tinggi)";
     if (z >= -2) return "Normal";
     if (z >= -3) return "Stunted (Perawakan Pendek)";
     return "Severely Stunted (Perawakan Sangat Pendek)";
 }
 
-function interpretWeightForAge(z: number): string {
+function interpretWeightForAge(z: number, isCDC: boolean): string {
+    if (isCDC) {
+        if (z < -1.645) return "Underweight (< P5)";
+        if (z > 1.645) return "Overweight (> P95)";
+        return "Normal";
+    }
     if (z > 1) return "Risiko BB Lebih";
     if (z >= -2) return "Normal";
     if (z >= -3) return "Underweight (BB Kurang)";
     return "Severely Underweight (BB Sangat Kurang)";
 }
 
-function interpretWeightForHeight(z: number): string {
+function interpretWeightForHeight(z: number, isCDC: boolean): string {
+    if (isCDC) {
+        return "Tidak digunakan";
+    }
     if (z > 3) return "Obese (Obesitas)";
     if (z > 2) return "Overweight (Gizi Lebih)";
     if (z > 1) return "Possible Risk of Overweight";
@@ -225,7 +259,13 @@ function interpretWeightForHeight(z: number): string {
     return "Severely Wasted (Gizi Buruk)";
 }
 
-function interpretBMIForAge(z: number): string {
+function interpretBMIForAge(z: number, isCDC: boolean): string {
+    if (isCDC) {
+        if (z >= 1.645) return "Obesity (≥ P95)";
+        if (z >= 1.036) return "Overweight (P85 - P95)";
+        if (z < -1.645) return "Underweight (< P5)";
+        return "Healthy Weight";
+    }
     if (z > 3) return "Obese (Obesitas)";
     if (z > 2) return "Overweight (Gizi Lebih)";
     if (z > 1) return "Possible Risk of Overweight";
@@ -258,6 +298,8 @@ export function getInterpretation(
     ageMonths: number,
     gender: 'male' | 'female'
 ): InterpretationResult {
+    const isCDC = ageMonths > 60;
+
     // Calculate Z-Scores
     const heightZScore = calculateZScore(actualHeight, ageMonths, gender, 'height');
     const weightZScore = calculateZScore(actualWeight, ageMonths, gender, 'weight');
@@ -267,56 +309,68 @@ export function getInterpretation(
     const bmi = actualWeight / (heightM * heightM);
     const bmiZScore = calculateZScore(bmi, ageMonths, gender, 'bmi');
 
-    // For Weight-for-Height, we need to find Z-Score based on height
-    // Using the IBW approach for now
+    // For Weight-for-Height, we use proper WHO data if < 5y
     const idealWeight = calculateIdealBodyWeight(actualHeight, gender);
     const percentWeightForHeight = (actualWeight / idealWeight) * 100;
 
-    // Approximate Z-Score for weight-for-height
-    // (This is simplified; true WFH Z-score would need weight-for-length tables)
     let wfhZScore = 0;
-    if (percentWeightForHeight > 120) wfhZScore = 3.5;
-    else if (percentWeightForHeight > 110) wfhZScore = 2.5;
-    else if (percentWeightForHeight > 100) wfhZScore = 0.5;
-    else if (percentWeightForHeight >= 90) wfhZScore = -0.5;
-    else if (percentWeightForHeight >= 80) wfhZScore = -1.5;
-    else if (percentWeightForHeight >= 70) wfhZScore = -2.5;
-    else wfhZScore = -3.5;
+    if (!isCDC) {
+        wfhZScore = calculateZScore(actualWeight, actualHeight, gender, 'weightForHeight');
+    } else {
+        if (percentWeightForHeight > 120) wfhZScore = 3.5;
+        else if (percentWeightForHeight > 110) wfhZScore = 2.5;
+        else if (percentWeightForHeight > 100) wfhZScore = 0.5;
+        else if (percentWeightForHeight >= 90) wfhZScore = -0.5;
+        else if (percentWeightForHeight >= 80) wfhZScore = -1.5;
+        else if (percentWeightForHeight >= 70) wfhZScore = -2.5;
+        else wfhZScore = -3.5;
+    }
 
     // Get ideal height for age
     const hData = getStandardData('height', gender, ageMonths);
-    const mappedH = hData.map(d => ({ ...d, val: d.age_months }));
-    const lmsH = interpolateLMS(ageMonths, mappedH as any, 'age_months');
+    const mappedH = hData.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const lmsH = interpolateLMS(ageMonths, mappedH as any, 'val');
     const idealHeightForAge = lmsH.M;
 
     // Get ideal weight for age  
     const wData = getStandardData('weight', gender, ageMonths);
-    const mappedW = wData.map(d => ({ ...d, val: d.age_months }));
-    const lmsW = interpolateLMS(ageMonths, mappedW as any, 'age_months');
+    const mappedW = wData.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const lmsW = interpolateLMS(ageMonths, mappedW as any, 'val');
     const idealWeightForAge = lmsW.M;
 
     const heightAge = calculateHeightAge(actualHeight, gender);
 
+    // Calculate Percentiles
+    const heightPercentile = zScoreToPercentile(heightZScore);
+    const weightPercentile = zScoreToPercentile(weightZScore);
+    const wfhPercentile = zScoreToPercentile(wfhZScore);
+    const bmiPercentile = zScoreToPercentile(bmiZScore);
+
     return {
+        isCDC,
         // Height-for-Age (TB/U)
-        heightForAge: interpretHeightForAge(heightZScore),
+        heightForAge: interpretHeightForAge(heightZScore, isCDC),
         heightForAgeZScore: parseFloat(heightZScore.toFixed(2)),
-        heightForAgeReason: `TB: ${actualHeight.toFixed(1)} cm, TB median: ${idealHeightForAge.toFixed(1)} cm, Z-Score: ${heightZScore.toFixed(2)} (${getZScoreThreshold(heightZScore)})`,
+        heightForAgePercentile: parseFloat(heightPercentile.toFixed(1)),
+        heightForAgeReason: `TB: ${actualHeight.toFixed(1)} cm, TB median: ${idealHeightForAge.toFixed(1)} cm${isCDC ? `, Percentile: ${Math.round(heightPercentile)}th` : `, Z-Score: ${heightZScore.toFixed(2)} (${getZScoreThreshold(heightZScore)})`}`,
 
         // Weight-for-Age (BB/U)
-        weightForAge: interpretWeightForAge(weightZScore),
+        weightForAge: interpretWeightForAge(weightZScore, isCDC),
         weightForAgeZScore: parseFloat(weightZScore.toFixed(2)),
-        weightForAgeReason: `BB: ${actualWeight.toFixed(1)} kg, BB median: ${idealWeightForAge.toFixed(1)} kg, Z-Score: ${weightZScore.toFixed(2)} (${getZScoreThreshold(weightZScore)})`,
+        weightForAgePercentile: parseFloat(weightPercentile.toFixed(1)),
+        weightForAgeReason: `BB: ${actualWeight.toFixed(1)} kg, BB median: ${idealWeightForAge.toFixed(1)} kg${isCDC ? `, Percentile: ${Math.round(weightPercentile)}th` : `, Z-Score: ${weightZScore.toFixed(2)} (${getZScoreThreshold(weightZScore)})`}`,
 
         // Weight-for-Height (BB/TB)
-        weightForHeight: interpretWeightForHeight(wfhZScore),
+        weightForHeight: interpretWeightForHeight(wfhZScore, isCDC),
         weightForHeightZScore: parseFloat(wfhZScore.toFixed(2)),
-        weightForHeightReason: `BB: ${actualWeight.toFixed(1)} kg / IBW: ${idealWeight.toFixed(1)} kg = ${percentWeightForHeight.toFixed(1)}%`,
+        weightForHeightPercentile: parseFloat(wfhPercentile.toFixed(1)),
+        weightForHeightReason: isCDC ? `Tidak menggunakan BB/TB untuk >5 tahun` : `BB: ${actualWeight.toFixed(1)} kg, TB: ${actualHeight.toFixed(1)} cm, Z-Score: ${wfhZScore.toFixed(2)}`,
 
         // BMI-for-Age (IMT/U)
-        bmiForAge: interpretBMIForAge(bmiZScore),
+        bmiForAge: interpretBMIForAge(bmiZScore, isCDC),
         bmiForAgeZScore: parseFloat(bmiZScore.toFixed(2)),
-        bmiForAgeReason: `IMT: ${bmi.toFixed(1)} kg/m², Z-Score: ${bmiZScore.toFixed(2)} (${getZScoreThreshold(bmiZScore)})`,
+        bmiForAgePercentile: parseFloat(bmiPercentile.toFixed(1)),
+        bmiForAgeReason: `IMT: ${bmi.toFixed(1)} kg/m²${isCDC ? `, Percentile: ${Math.round(bmiPercentile)}th` : `, Z-Score: ${bmiZScore.toFixed(2)} (${getZScoreThreshold(bmiZScore)})`}`,
 
         // Waterlow (percentage based)
         waterlowStatus: interpretWaterlow(percentWeightForHeight),

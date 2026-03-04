@@ -5,9 +5,9 @@ import { ArrowLeft, Plus, Activity, Ruler, Scale, Info, TrendingUp, Weight } fro
 import { getPatient, addMeasurement } from "../../actions";
 import { ClientThemeWrapper } from "./client-wrapper";
 import { GrowthChart } from "@/components/growth-chart";
-// Import interpretation
+import { MeasurementRow } from "./patient-actions";
 import { getInterpretation, getGrowthTrend } from "@/lib/growth-standards";
-import { calculateDetailedAge } from "@/lib/utils";
+import { calculateDetailedAge, formatMonthsToDetailedAge } from "@/lib/utils";
 
 function calculateAgeMonths(dob: Date, measurementDate: Date) {
     const diffTime = Math.abs(measurementDate.getTime() - dob.getTime());
@@ -48,10 +48,11 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
     // Transform measurements
     const measurements = patient.measurements.map(m => {
         const ageMonths = calculateAgeMonths(patient.dob, m.date);
-        const h = m.height ? m.height / 100 : 0; // convert cm to m for BMI
+        const h = m.height ? m.height / 100 : 0;
         const bmi = (m.weight && h > 0) ? (m.weight / (h * h)) : 0;
 
         return {
+            id: m.id,
             date: m.date.toISOString().split('T')[0],
             weight: m.weight || 0,
             height: m.height || 0,
@@ -80,6 +81,9 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
         );
     }
 
+    // Clinical thinking: Waterlow first → show IMT/U only if Waterlow indicates overweight/obesity (>110%)
+    const showBmiInterpretation = interpretation ? interpretation.waterlowPercent > 110 : false;
+
     return (
         <ClientThemeWrapper gender={patient.gender as "male" | "female"}>
             <div className="mx-auto max-w-6xl pb-10">
@@ -87,32 +91,34 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                     <ArrowLeft className="h-4 w-4" /> Back to Dashboard
                 </Link>
 
-                <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between border-b pb-6">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${patient.gender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                                {patient.gender}
-                            </span>
-                            <span className="text-xs font-medium text-muted-foreground">ID: {patient.id.slice(0, 8)}</span>
+                <header className="mb-8 flex flex-col gap-4 border-b pb-6">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${patient.gender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                                    {patient.gender}
+                                </span>
+                                <span className="text-xs font-medium text-muted-foreground">ID: {patient.id.slice(0, 8)}</span>
+                            </div>
+                            <h1 className="text-4xl font-black tracking-tight text-foreground">
+                                {patient.name}
+                            </h1>
+                            <p className="mt-1 text-muted-foreground">
+                                Lahir: <span className="font-semibold text-foreground">{patient.dob.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span> ({calculateDetailedAge(patient.dob)})
+                            </p>
                         </div>
-                        <h1 className="text-4xl font-black tracking-tight text-foreground">
-                            {patient.name}
-                        </h1>
-                        <p className="mt-1 text-muted-foreground">
-                            Lahir: <span className="font-semibold text-foreground">{patient.dob.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span> ({calculateDetailedAge(patient.dob)})
-                        </p>
-                    </div>
 
-                    <div className="flex flex-col gap-2">
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Entri Data Baru</span>
-                        <form action={addMeasurement.bind(null, patient.id)} className="flex items-center gap-2 bg-white p-1.5 rounded-xl border-2 border-primary/20 shadow-sm">
-                            <input type="date" name="date" required title="Tanggal Pengukuran" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all font-medium" defaultValue={new Date().toISOString().split('T')[0]} />
-                            <input type="number" step="0.1" name="weight" placeholder="BB (kg)" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all w-24 font-bold" />
-                            <input type="number" step="0.1" name="height" placeholder="TB (cm)" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all w-24 font-bold" />
-                            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-primary-foreground shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                <Plus className="h-4 w-4" /> Simpan
-                            </button>
-                        </form>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Entri Data Baru</span>
+                            <form action={addMeasurement.bind(null, patient.id)} className="flex items-center gap-2 bg-white p-1.5 rounded-xl border-2 border-primary/20 shadow-sm">
+                                <input type="date" name="date" required title="Tanggal Pengukuran" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all font-medium" defaultValue={new Date().toISOString().split('T')[0]} />
+                                <input type="number" step="0.1" name="weight" placeholder="BB (kg)" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all w-24 font-bold" />
+                                <input type="number" step="0.1" name="height" placeholder="TB (cm)" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all w-24 font-bold" />
+                                <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-primary-foreground shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                    <Plus className="h-4 w-4" /> Simpan
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </header>
 
@@ -123,6 +129,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                             measurements={measurements}
                             patientName={patient.name}
                             patientDob={new Date(patient.dob).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                            showBmi={showBmiInterpretation}
                         />
 
                         {/* TREND ANALYSIS CARD */}
@@ -153,33 +160,51 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                             </div>
                         )}
 
-                        {/* INTERPRETATION CARD - WHO Z-Score Based */}
+                        {/* INTERPRETATION CARD - Differentiated WHO vs CDC */}
                         {interpretation && (
-                            <div className="rounded-2xl border-2 border-border/50 bg-white p-8 shadow-md">
+                            <div className={`relative overflow-hidden rounded-2xl border-2 bg-white p-8 shadow-md ${interpretation.isCDC ? 'border-blue-500/20 shadow-blue-500/5' : 'border-green-500/20 shadow-green-500/5'
+                                }`}>
+                                {/* Background Accent Ribbon */}
+                                <div className={`absolute top-0 left-0 w-1.5 h-full ${interpretation.isCDC ? 'bg-blue-500' : 'bg-green-500'
+                                    }`} />
+
                                 <div className="flex items-center justify-between mb-6">
                                     <h3 className="text-xl font-black flex items-center gap-2">
-                                        <Activity className="h-6 w-6 text-primary" />
+                                        <Activity className={`h-6 w-6 ${interpretation.isCDC ? 'text-blue-500' : 'text-green-500'}`} />
                                         Interpretasi Klinis <span className="text-muted-foreground font-normal text-sm ml-2">(Data Terakhir)</span>
                                     </h3>
-                                    <div className="px-3 py-1 bg-primary/10 rounded-full text-[10px] font-bold text-primary uppercase tracking-widest">
-                                        Medical Grade
+                                    <div className="flex items-center gap-2">
+                                        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${interpretation.isCDC ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                            }`}>
+                                            {interpretation.isCDC ? 'Standar CDC (Percentile)' : 'Standar WHO (Z-Score)'}
+                                        </div>
+                                        <div className="px-3 py-1 bg-primary/10 rounded-full text-[10px] font-bold text-primary uppercase tracking-widest">
+                                            Medical Grade
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* WHO Z-Score Interpretations */}
+                                {/* Metrics Cards */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
                                     {/* TB/U (Height-for-Age) */}
-                                    <div className="group p-5 bg-muted/10 hover:bg-muted/20 rounded-2xl border-2 border-transparent transition-all">
+                                    <div className={`group p-5 rounded-2xl border-2 border-transparent transition-all ${interpretation.isCDC ? 'bg-blue-50/50 hover:bg-blue-50/80 hover:border-blue-100' : 'bg-green-50/50 hover:bg-green-50/80 hover:border-green-100'
+                                        }`}>
                                         <div className="flex items-center gap-2 mb-3">
                                             <div className="p-2 bg-white rounded-lg shadow-xs border">
-                                                <Ruler className="h-4 w-4 text-primary" />
+                                                <Ruler className={`h-4 w-4 ${interpretation.isCDC ? 'text-blue-500' : 'text-green-600'}`} />
                                             </div>
                                             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">TB/U (Tinggi Badan menurut Umur)</span>
                                         </div>
                                         <div className={`text-xl font-black mb-1 ${getStatusColor(interpretation.heightForAge)}`}>
                                             {interpretation.heightForAge}
                                         </div>
-                                        <div className="text-sm font-bold text-muted-foreground">Z-Score: <span className="text-foreground">{interpretation.heightForAgeZScore} SD</span></div>
+                                        <div className="text-sm font-bold text-muted-foreground">
+                                            {interpretation.isCDC ? (
+                                                <>Percentile: <span className="text-foreground">P{Math.round(interpretation.heightForAgePercentile)}</span></>
+                                            ) : (
+                                                <>Z-Score: <span className="text-foreground">{interpretation.heightForAgeZScore} SD</span></>
+                                            )}
+                                        </div>
                                         <div className="mt-3 pt-3 border-t border-border/50 italic opacity-80">
                                             <p className="text-[10px] text-muted-foreground leading-relaxed">
                                                 {interpretation.heightForAgeReason}
@@ -188,17 +213,24 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                     </div>
 
                                     {/* BB/U (Weight-for-Age) */}
-                                    <div className="group p-5 bg-muted/10 hover:bg-muted/20 rounded-2xl border-2 border-transparent transition-all">
+                                    <div className={`group p-5 rounded-2xl border-2 border-transparent transition-all ${interpretation.isCDC ? 'bg-blue-50/50 hover:bg-blue-50/80 hover:border-blue-100' : 'bg-green-50/50 hover:bg-green-50/80 hover:border-green-100'
+                                        }`}>
                                         <div className="flex items-center gap-2 mb-3">
                                             <div className="p-2 bg-white rounded-lg shadow-xs border">
-                                                <Weight className="h-4 w-4 text-primary" />
+                                                <Weight className={`h-4 w-4 ${interpretation.isCDC ? 'text-blue-500' : 'text-green-600'}`} />
                                             </div>
                                             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">BB/U (Berat Badan menurut Umur)</span>
                                         </div>
                                         <div className={`text-xl font-black mb-1 ${getStatusColor(interpretation.weightForAge)}`}>
                                             {interpretation.weightForAge}
                                         </div>
-                                        <div className="text-sm font-bold text-muted-foreground">Z-Score: <span className="text-foreground">{interpretation.weightForAgeZScore} SD</span></div>
+                                        <div className="text-sm font-bold text-muted-foreground">
+                                            {interpretation.isCDC ? (
+                                                <>Percentile: <span className="text-foreground">P{Math.round(interpretation.weightForAgePercentile)}</span></>
+                                            ) : (
+                                                <>Z-Score: <span className="text-foreground">{interpretation.weightForAgeZScore} SD</span></>
+                                            )}
+                                        </div>
                                         <div className="mt-3 pt-3 border-t border-border/50 italic opacity-80">
                                             <p className="text-[10px] text-muted-foreground leading-relaxed">
                                                 {interpretation.weightForAgeReason}
@@ -207,17 +239,24 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                     </div>
 
                                     {/* BB/TB (Weight-for-Height) */}
-                                    <div className="group p-5 bg-muted/10 hover:bg-muted/20 rounded-2xl border-2 border-transparent transition-all">
+                                    <div className={`group p-5 rounded-2xl border-2 border-transparent transition-all ${interpretation.isCDC ? 'bg-muted/10 opacity-60 grayscale' : 'bg-green-50/50 hover:bg-green-50/80 hover:border-green-100'
+                                        }`}>
                                         <div className="flex items-center gap-2 mb-3">
                                             <div className="p-2 bg-white rounded-lg shadow-xs border">
-                                                <Scale className="h-4 w-4 text-primary" />
+                                                <Scale className={`h-4 w-4 ${interpretation.isCDC ? 'text-muted-foreground' : 'text-green-600'}`} />
                                             </div>
                                             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">BB/TB (Berat Badan menurut Tinggi Badan)</span>
                                         </div>
-                                        <div className={`text-xl font-black mb-1 ${getStatusColor(interpretation.weightForHeight)}`}>
+                                        <div className={`text-xl font-black mb-1 ${interpretation.isCDC ? 'text-muted-foreground' : getStatusColor(interpretation.weightForHeight)}`}>
                                             {interpretation.weightForHeight}
                                         </div>
-                                        <div className="text-sm font-bold text-muted-foreground">Z-Score: <span className="text-foreground">{interpretation.weightForHeightZScore} SD</span></div>
+                                        <div className="text-sm font-bold text-muted-foreground">
+                                            {interpretation.isCDC ? (
+                                                <>Percentile: <span className="text-foreground">-</span></>
+                                            ) : (
+                                                <>Z-Score: <span className="text-foreground">{interpretation.weightForHeightZScore} SD</span></>
+                                            )}
+                                        </div>
                                         <div className="mt-3 pt-3 border-t border-border/50 italic opacity-80">
                                             <p className="text-[10px] text-muted-foreground leading-relaxed">
                                                 {interpretation.weightForHeightReason}
@@ -225,30 +264,47 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                         </div>
                                     </div>
 
-                                    {/* IMT/U (BMI-for-Age) */}
-                                    <div className="group p-5 bg-muted/10 hover:bg-muted/20 rounded-2xl border-2 border-transparent transition-all">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <div className="p-2 bg-white rounded-lg shadow-xs border">
-                                                <Activity className="h-4 w-4 text-primary" />
+                                    {/* IMT/U (BMI-for-Age) — only shown when Waterlow indicates overweight/obesity */}
+                                    {showBmiInterpretation ? (
+                                        <div className={`group p-5 rounded-2xl border-2 border-transparent transition-all ${interpretation.isCDC ? 'bg-blue-50/50 hover:bg-blue-50/80 hover:border-blue-100' : 'bg-green-50/50 hover:bg-green-50/80 hover:border-green-100'
+                                            }`}>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="p-2 bg-white rounded-lg shadow-xs border">
+                                                    <Activity className={`h-4 w-4 ${interpretation.isCDC ? 'text-blue-500' : 'text-green-600'}`} />
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">IMT/U (Indeks Massa Tubuh menurut Umur)</span>
                                             </div>
-                                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">IMT/U (Indeks Massa Tubuh menurut Umur)</span>
+                                            <div className={`text-xl font-black mb-1 ${getStatusColor(interpretation.bmiForAge)}`}>
+                                                {interpretation.bmiForAge}
+                                            </div>
+                                            <div className="text-sm font-bold text-muted-foreground">
+                                                {interpretation.isCDC ? (
+                                                    <>Percentile: <span className="text-foreground">P{Math.round(interpretation.bmiForAgePercentile)}</span></>
+                                                ) : (
+                                                    <>Z-Score: <span className="text-foreground">{interpretation.bmiForAgeZScore} SD</span></>
+                                                )}
+                                            </div>
+                                            <div className="mt-3 pt-3 border-t border-border/50 italic opacity-80">
+                                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                                    {interpretation.bmiForAgeReason}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className={`text-xl font-black mb-1 ${getStatusColor(interpretation.bmiForAge)}`}>
-                                            {interpretation.bmiForAge}
-                                        </div>
-                                        <div className="text-sm font-bold text-muted-foreground">Z-Score: <span className="text-foreground">{interpretation.bmiForAgeZScore} SD</span></div>
-                                        <div className="mt-3 pt-3 border-t border-border/50 italic opacity-80">
-                                            <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                                {interpretation.bmiForAgeReason}
+                                    ) : (
+                                        <div className={`p-5 rounded-2xl border-2 border-dashed flex items-center justify-center min-h-[120px] ${interpretation.isCDC ? 'bg-blue-50/30 border-blue-200' : 'bg-green-50/30 border-green-200'
+                                            }`}>
+                                            <p className="text-xs text-muted-foreground text-center italic leading-relaxed">
+                                                IMT/U tidak ditampilkan — Waterlow tidak menunjukkan overweight/obesitas ({interpretation.waterlowPercent}%)
                                             </p>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
 
                                 {/* Waterlow Classification */}
-                                <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                                <div className={`p-4 rounded-lg border ${interpretation.isCDC ? 'bg-blue-500/5 border-blue-500/20' : 'bg-green-500/5 border-green-500/20'
+                                    }`}>
                                     <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                                        <Info className="h-4 w-4 text-primary" />
+                                        <Info className={`h-4 w-4 ${interpretation.isCDC ? 'text-blue-600' : 'text-green-600'}`} />
                                         Klasifikasi Waterlow
                                     </h4>
                                     <div className="grid grid-cols-3 gap-4">
@@ -265,10 +321,11 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                         </div>
                                         <div>
                                             <span className="text-xs text-muted-foreground uppercase">Height Age</span>
-                                            <div className="text-xl font-bold">{interpretation.heightAge} bulan</div>
+                                            <div className="text-xl font-bold">{formatMonthsToDetailedAge(interpretation.heightAge)}</div>
                                         </div>
                                     </div>
-                                    <div className="mt-3 pt-3 border-t border-primary/20">
+                                    <div className={`mt-3 pt-3 border-t ${interpretation.isCDC ? 'border-blue-500/20' : 'border-green-500/20'
+                                        }`}>
                                         <div className="flex items-start gap-1.5">
                                             <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                                             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -278,50 +335,92 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                     </div>
                                 </div>
 
-                                {/* Classification Legend */}
+                                {/* Classification Legend Differentiated */}
                                 <div className="mt-4 pt-4 border-t">
-                                    <p className="text-xs text-muted-foreground mb-3 font-semibold">Referensi Interpretasi (WHO):</p>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
-                                        <div>
-                                            <span className="font-medium block mb-1">TB/U:</span>
-                                            <ul className="space-y-0.5">
-                                                <li>• &gt; 3 SD: Very Tall</li>
-                                                <li>• -2 to 3 SD: Normal</li>
-                                                <li>• -3 to -2 SD: Stunted</li>
-                                                <li>• &lt; -3 SD: Severely Stunted</li>
-                                            </ul>
+                                    <p className="text-xs text-muted-foreground mb-3 font-semibold">
+                                        Referensi Interpretasi ({interpretation.isCDC ? 'CDC' : 'WHO'}):
+                                    </p>
+
+                                    {!interpretation.isCDC ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
+                                            <div>
+                                                <span className="font-medium block mb-1">TB/U:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; 3 SD: Very Tall</li>
+                                                    <li>• -2 to 3 SD: Normal</li>
+                                                    <li>• -3 to -2 SD: Stunted</li>
+                                                    <li>• &lt; -3 SD: Severely Stunted</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium block mb-1">BB/U:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; 1 SD: Risiko BB Lebih</li>
+                                                    <li>• -2 to 1 SD: Normal</li>
+                                                    <li>• -3 to -2 SD: Underweight</li>
+                                                    <li>• &lt; -3 SD: Severely Underweight</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium block mb-1">BB/TB & IMT/U:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; 3 SD: Obese</li>
+                                                    <li>• 2 to 3 SD: Overweight</li>
+                                                    <li>• 1 to 2 SD: Risk of Overweight</li>
+                                                    <li>• -2 to 1 SD: Normal</li>
+                                                    <li>• -3 to -2 SD: Wasted</li>
+                                                    <li>• &lt; -3 SD: Severely Wasted</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium block mb-1">Waterlow:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; 120%: Obesitas</li>
+                                                    <li>• 110-120%: Overweight</li>
+                                                    <li>• 90-110%: Gizi Baik</li>
+                                                    <li>• 70-90%: Gizi Kurang</li>
+                                                    <li>• &lt; 70%: Gizi Buruk</li>
+                                                </ul>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="font-medium block mb-1">BB/U:</span>
-                                            <ul className="space-y-0.5">
-                                                <li>• &gt; 1 SD: Risiko BB Lebih</li>
-                                                <li>• -2 to 1 SD: Normal</li>
-                                                <li>• -3 to -2 SD: Underweight</li>
-                                                <li>• &lt; -3 SD: Severely Underweight</li>
-                                            </ul>
+                                    ) : (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
+                                            <div>
+                                                <span className="font-medium block mb-1">TB/U:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &ge; P5: Normal</li>
+                                                    <li>• &lt; P5: Short Stature</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium block mb-1">BB/U:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; P95: Overweight</li>
+                                                    <li>• P5 - P95: Normal</li>
+                                                    <li>• &lt; P5: Underweight</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium block mb-1">IMT/U:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &ge; P95: Obesity</li>
+                                                    <li>• P85 - P95: Overweight</li>
+                                                    <li>• P5 - &lt; P85: Healthy Weight</li>
+                                                    <li>• &lt; P5: Underweight</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium block mb-1">Waterlow:</span>
+                                                <ul className="space-y-0.5">
+                                                    <li>• &gt; 120%: Obesitas</li>
+                                                    <li>• 110-120%: Overweight</li>
+                                                    <li>• 90-110%: Gizi Baik</li>
+                                                    <li>• 70-90%: Gizi Kurang</li>
+                                                    <li>• &lt; 70%: Gizi Buruk</li>
+                                                </ul>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="font-medium block mb-1">BB/TB & IMT/U:</span>
-                                            <ul className="space-y-0.5">
-                                                <li>• &gt; 3 SD: Obese</li>
-                                                <li>• 2 to 3 SD: Overweight</li>
-                                                <li>• 1 to 2 SD: Risk of Overweight</li>
-                                                <li>• -2 to 1 SD: Normal</li>
-                                                <li>• -3 to -2 SD: Wasted</li>
-                                                <li>• &lt; -3 SD: Severely Wasted</li>
-                                            </ul>
-                                        </div>
-                                        <div>
-                                            <span className="font-medium block mb-1">Waterlow:</span>
-                                            <ul className="space-y-0.5">
-                                                <li>• &gt; 120%: Obesitas</li>
-                                                <li>• 110-120%: Overweight</li>
-                                                <li>• 90-110%: Gizi Baik</li>
-                                                <li>• 70-90%: Gizi Kurang</li>
-                                                <li>• &lt; 70%: Gizi Buruk</li>
-                                            </ul>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -331,18 +430,13 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                         <div className="rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
                             <h3 className="mb-4 font-semibold">Measurement History</h3>
                             <div className="space-y-4">
-                                {[...measurements].reverse().map((m, i) => (
-                                    <div key={i} className="flex flex-col gap-1 border-b pb-3 last:border-0">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm font-medium">{m.date}</span>
-                                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{m.detailedAge}</span>
-                                        </div>
-                                        <div className="flex gap-4 text-sm">
-                                            {m.weight > 0 && <span><strong>W:</strong> {m.weight}kg</span>}
-                                            {m.height > 0 && <span><strong>H:</strong> {m.height}cm</span>}
-                                            {m.bmi > 0 && <span><strong>BMI:</strong> {m.bmi}</span>}
-                                        </div>
-                                    </div>
+                                {[...measurements].reverse().map((m) => (
+                                    <MeasurementRow
+                                        key={m.id}
+                                        measurement={m}
+                                        patientId={patient.id}
+                                        detailedAge={m.detailedAge}
+                                    />
                                 ))}
                                 {measurements.length === 0 && <p className="text-sm text-muted-foreground">No records yet.</p>}
                             </div>
