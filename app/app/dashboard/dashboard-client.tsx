@@ -7,6 +7,7 @@ import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2 } from "lucide-re
 import { createPatient, updatePatient, deletePatient } from "../actions";
 import { calculateDetailedAge } from "@/lib/utils";
 import { LogoutButton } from "@/components/logout-button";
+import { RamadanGreeting } from "@/components/ramadan-greeting";
 
 interface PatientData {
     id: string;
@@ -86,6 +87,8 @@ export function DashboardClient({ patients, userName, userUsername, version }: {
                     </span>
                 </div>
             </header>
+
+            <RamadanGreeting />
 
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredPatients.map((patient) => (
