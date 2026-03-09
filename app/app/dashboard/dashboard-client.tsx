@@ -17,7 +17,7 @@ interface PatientData {
     _count: { measurements: number };
 }
 
-export function DashboardClient({ patients, userName, userUsername }: { patients: PatientData[], userName: string, userUsername: string }) {
+export function DashboardClient({ patients, userName, userUsername, version }: { patients: PatientData[], userName: string, userUsername: string, version: string }) {
     const [searchQuery, setSearchQuery] = useState("");
 
     const filteredPatients = useMemo(() => {
@@ -31,7 +31,10 @@ export function DashboardClient({ patients, userName, userUsername }: { patients
             <header className="mb-8 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-primary">Pediatric Dashboard</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-3xl font-bold tracking-tight text-primary">Pediatric Dashboard</h1>
+                            <span className="text-xs font-mono font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">v{version}</span>
+                        </div>
                         <p className="text-muted-foreground">Manage your patients and track their growth.</p>
                     </div>
 
