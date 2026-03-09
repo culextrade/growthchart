@@ -66,7 +66,11 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
             height: m.height || 0,
             bmi: parseFloat(bmi.toFixed(2)),
             ageMonths,
-            detailedAge: calculateDetailedAge(patient.dob, m.date)
+            detailedAge: calculateDetailedAge(patient.dob, m.date),
+            headCircumference: m.headCircumference || undefined,
+            armCircumference: m.armCircumference || undefined,
+            subscapularSkinfold: m.subscapularSkinfold || undefined,
+            tricepsSkinfold: m.tricepsSkinfold || undefined
         };
     });
 
@@ -100,7 +104,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                 </Link>
 
                 <header className="mb-8 flex flex-col gap-4 border-b pb-6">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${patient.gender === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
@@ -116,15 +120,45 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                             </p>
                         </div>
 
-                        <div className="flex flex-col gap-2">
-                            <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Entri Data Baru</span>
-                            <form action={addMeasurement.bind(null, patient.id)} className="flex items-center gap-2 bg-white p-1.5 rounded-xl border-2 border-primary/20 shadow-sm">
-                                <input type="date" name="date" required title="Tanggal Pengukuran" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all font-medium" defaultValue={new Date().toISOString().split('T')[0]} />
-                                <input type="number" step="0.1" name="weight" placeholder="BB (kg)" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all w-24 font-bold" />
-                                <input type="number" step="0.1" name="height" placeholder="TB (cm)" className="px-2 py-1.5 border rounded-lg text-sm bg-muted/30 focus:bg-white outline-none focus:ring-2 ring-primary/20 transition-all w-24 font-bold" />
-                                <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-primary-foreground shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                    <Plus className="h-4 w-4" /> Simpan
-                                </button>
+                        <div className="flex flex-col gap-3 bg-card border border-border shadow-sm p-4 md:p-5 rounded-[24px] relative z-10 w-full md:w-auto">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Entri Data Baru</span>
+                            <form action={addMeasurement.bind(null, patient.id)} className="flex flex-col gap-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <input type="date" name="date" required title="Tanggal Pengukuran" className="px-3 py-2 border border-border rounded-xl text-sm bg-muted/30 focus:bg-background outline-none focus:ring-2 ring-primary/20 transition-all font-medium min-w-[130px]" defaultValue={new Date().toISOString().split('T')[0]} />
+                                    <input type="number" step="0.1" name="weight" placeholder="BB (kg)" className="px-3 py-2 border border-border rounded-xl text-sm bg-muted/30 focus:bg-background outline-none focus:ring-2 ring-primary/20 transition-all w-[100px] font-bold" />
+                                    <input type="number" step="0.1" name="height" placeholder="TB (cm)" className="px-3 py-2 border border-border rounded-xl text-sm bg-muted/30 focus:bg-background outline-none focus:ring-2 ring-primary/20 transition-all w-[100px] font-bold" />
+                                    <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-primary-foreground shadow-[0_4px_14px_0_hsl(var(--primary)/0.39)] transition-all hover:scale-[1.02] active:scale-[0.98] ml-auto md:ml-0">
+                                        <Plus className="h-4 w-4" /> Simpan
+                                    </button>
+                                </div>
+                                <div className="mt-1">
+                                    <input type="checkbox" id="toggle-data-tambahan" className="peer hidden" />
+                                    <label htmlFor="toggle-data-tambahan" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors select-none inline-flex items-center gap-1.5 bg-muted/30 px-3 py-1.5 rounded-full cursor-pointer outline-none hover:ring-2 ring-primary/20 peer-checked:[&>span]:-rotate-180">
+                                        <span className="transition-transform duration-300 origin-center text-[10px]">▼</span> Data Tambahan (Opsional)
+                                    </label>
+                                    <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 ease-in-out peer-checked:grid-rows-[1fr] peer-checked:opacity-100 overflow-hidden">
+                                        <div className="min-h-0 pt-3">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-muted/20 border border-border/50 rounded-2xl shadow-inner">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-[11px] text-muted-foreground font-semibold ml-1">Lingkar Kepala</label>
+                                                    <input type="number" step="0.1" name="headCircumference" placeholder="LK (cm)" className="px-3 py-2 border border-border rounded-xl text-sm bg-background focus:ring-2 ring-primary/20 outline-none w-full transition-shadow" />
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-[11px] text-muted-foreground font-semibold ml-1">Lengan Atas</label>
+                                                    <input type="number" step="0.1" name="armCircumference" placeholder="LiLA (cm)" className="px-3 py-2 border border-border rounded-xl text-sm bg-background focus:ring-2 ring-primary/20 outline-none w-full transition-shadow" />
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-[11px] text-muted-foreground font-semibold ml-1">Subskapula</label>
+                                                    <input type="number" step="0.1" name="subscapularSkinfold" placeholder="SS (mm)" className="px-3 py-2 border border-border rounded-xl text-sm bg-background focus:ring-2 ring-primary/20 outline-none w-full transition-shadow" />
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-[11px] text-muted-foreground font-semibold ml-1">Triseps</label>
+                                                    <input type="number" step="0.1" name="tricepsSkinfold" placeholder="TS (mm)" className="px-3 py-2 border border-border rounded-xl text-sm bg-background focus:ring-2 ring-primary/20 outline-none w-full transition-shadow" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </form>
                         </div>
                     </div>

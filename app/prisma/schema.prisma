@@ -41,15 +41,18 @@ model Patient {
 }
 
 model Measurement {
-  id                String   @id @default(cuid())
-  date              DateTime @default(now())
-  weight            Float?   // in kg
-  height            Float?   // in cm
-  headCircumference Float?   // in cm
-  tenant_id         String
-  patientId         String
-  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  date                 DateTime @default(now())
+  weight               Float?   // in kg
+  height               Float?   // in cm
+  headCircumference    Float?   // in cm
+  armCircumference     Float?   // LiLA/MUAC in cm
+  subscapularSkinfold  Float?   // in mm
+  tricepsSkinfold      Float?   // in mm
+  tenant_id            String
+  patientId            String
+  patient              Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 

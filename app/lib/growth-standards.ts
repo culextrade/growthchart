@@ -8,6 +8,12 @@ import {
     WHO_BOYS_BMI_COMPLETE,
     WHO_GIRLS_BMI_COMPLETE,
 } from './who-data';
+import { WHO_BOYS_HEAD_CIRCUMFERENCE, WHO_GIRLS_HEAD_CIRCUMFERENCE } from './who-head-circumference-data';
+import { WHO_BOYS_ARM_CIRCUMFERENCE, WHO_GIRLS_ARM_CIRCUMFERENCE } from './who-arm-circumference-data';
+import { WHO_BOYS_SUBSCAPULAR_SKINFOLD, WHO_GIRLS_SUBSCAPULAR_SKINFOLD } from './who-subscapular-skinfold-data';
+import { WHO_BOYS_TRICEPS_SKINFOLD, WHO_GIRLS_TRICEPS_SKINFOLD } from './who-triceps-skinfold-data';
+import { CDC_BOYS_HEAD_CIRCUMFERENCE, CDC_GIRLS_HEAD_CIRCUMFERENCE } from './cdc-head-circumference-data';
+import { CDC_BOYS_WEIGHT_FOR_STATURE, CDC_GIRLS_WEIGHT_FOR_STATURE } from './cdc-weight-for-stature-data';
 
 export interface LMS {
     age_months: number;
@@ -83,24 +89,38 @@ function interpolateLMS(value: number, data: { val: number } & any, key: string)
 }
 
 
+export type MetricType = 'weight' | 'height' | 'bmi' | 'weightForHeight' | 'headCircumference' | 'armCircumference' | 'subscapularSkinfold' | 'tricepsSkinfold' | 'cdcWeightForStature';
+
 // Modified to switch based on Age
-export function getStandardData(metric: 'weight' | 'height' | 'bmi' | 'weightForHeight', gender: 'male' | 'female', ageMonths: number = 0) {
+export function getStandardData(metric: MetricType, gender: 'male' | 'female', ageMonths: number = 0) {
     const isCDC = ageMonths > 60; // Over 5 years
 
     if (metric === 'weight') return !isCDC ? (gender === 'male' ? WHO_BOYS_WEIGHT : WHO_GIRLS_WEIGHT) : CDC_WEIGHT_DATA[gender] as LMS[];
     if (metric === 'height') return !isCDC ? (gender === 'male' ? WHO_BOYS_HEIGHT : WHO_GIRLS_HEIGHT) : CDC_HEIGHT_DATA[gender] as LMS[];
     if (metric === 'bmi') return !isCDC ? (gender === 'male' ? WHO_BOYS_BMI : WHO_GIRLS_BMI) : CDC_BMI_DATA[gender] as LMS[];
-
     if (metric === 'weightForHeight') return gender === 'male' ? WHO_BOYS_WL : WHO_GIRLS_WL;
+
+    // New chart types
+    if (metric === 'headCircumference') {
+        if (!isCDC) return (gender === 'male' ? WHO_BOYS_HEAD_CIRCUMFERENCE : WHO_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
+        return (gender === 'male' ? CDC_BOYS_HEAD_CIRCUMFERENCE : CDC_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
+    }
+    if (metric === 'armCircumference') return (gender === 'male' ? WHO_BOYS_ARM_CIRCUMFERENCE : WHO_GIRLS_ARM_CIRCUMFERENCE) as LMS[];
+    if (metric === 'subscapularSkinfold') return (gender === 'male' ? WHO_BOYS_SUBSCAPULAR_SKINFOLD : WHO_GIRLS_SUBSCAPULAR_SKINFOLD) as LMS[];
+    if (metric === 'tricepsSkinfold') return (gender === 'male' ? WHO_BOYS_TRICEPS_SKINFOLD : WHO_GIRLS_TRICEPS_SKINFOLD) as LMS[];
+    if (metric === 'cdcWeightForStature') {
+        const data = gender === 'male' ? CDC_BOYS_WEIGHT_FOR_STATURE : CDC_GIRLS_WEIGHT_FOR_STATURE;
+        return data.map(d => ({ age_months: 0, L: d.L, M: d.M, S: d.S, length_cm: d.height_cm })) as any;
+    }
 
     return WHO_BOYS_WEIGHT; // Fallback
 }
 
-export function calculateZScore(measurement: number, ageMonthsOrHeight: number, gender: 'male' | 'female', metric: 'weight' | 'height' | 'bmi' | 'weightForHeight'): number {
+export function calculateZScore(measurement: number, ageMonthsOrHeight: number, gender: 'male' | 'female', metric: MetricType): number {
     // Pass ageMonths so we know which standard to use
     const data = getStandardData(metric, gender, ageMonthsOrHeight);
 
-    const mapped = data.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const mapped = data.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
     const lms = interpolateLMS(ageMonthsOrHeight, mapped as any, 'val');
 
     const { L, M, S } = lms;
@@ -112,9 +132,9 @@ export function calculateZScore(measurement: number, ageMonthsOrHeight: number, 
     return (Math.pow(measurement / M, L) - 1) / (L * S);
 }
 
-export function getMeasurementForZScore(z: number, ageMonths: number, gender: 'male' | 'female', metric: 'weight' | 'height' | 'bmi' | 'weightForHeight' = 'weight'): number {
+export function getMeasurementForZScore(z: number, ageMonths: number, gender: 'male' | 'female', metric: MetricType = 'weight'): number {
     const data = getStandardData(metric, gender, ageMonths);
-    const mapped = data.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const mapped = data.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
     const lms = interpolateLMS(ageMonths, mapped as any, 'val');
 
     const { L, M, S } = lms;
@@ -123,6 +143,23 @@ export function getMeasurementForZScore(z: number, ageMonths: number, gender: 'm
         return M * Math.exp(S * z);
     }
     return M * Math.pow(1 + L * S * z, 1 / L);
+}
+
+// Interpretation for head circumference
+export function interpretHeadCircumference(z: number): string {
+    if (z > 2) return 'Macrocephaly';
+    if (z < -2) return 'Microcephaly';
+    return 'Normal';
+}
+
+// Interpretation for arm circumference (MUAC)
+export function interpretArmCircumference(value: number, ageMonths: number): string {
+    if (ageMonths >= 6 && ageMonths <= 59) {
+        if (value < 11.5) return 'Severe Acute Malnutrition';
+        if (value < 12.5) return 'Moderate Acute Malnutrition';
+        return 'Adequate Nutrition';
+    }
+    return 'N/A';
 }
 
 // --- INTERPRETATION UTILS ---
@@ -170,7 +207,7 @@ export function calculateIdealBodyWeight(heightCm: number, gender: 'male' | 'fem
     const hAge = calculateHeightAge(heightCm, gender);
     const weightData = getStandardData('weight', gender, hAge);
     // This finds weight for Height Age.
-    const mappedW = weightData.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const mappedW = weightData.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
     const lmsW = interpolateLMS(hAge, mappedW as any, 'val');
     return lmsW.M;
 }
@@ -238,7 +275,7 @@ function interpretHeightForAge(z: number, isCDC: boolean): string {
 function interpretWeightForAge(z: number, isCDC: boolean): string {
     if (isCDC) {
         if (z < -1.645) return "Underweight (< P5)";
-        if (z > 1.645) return "Overweight (> P95)";
+        if (z > 1.282) return "Overweight (> P90)";
         return "Normal";
     }
     if (z > 1) return "Risiko BB Lebih";
@@ -327,13 +364,13 @@ export function getInterpretation(
 
     // Get ideal height for age
     const hData = getStandardData('height', gender, ageMonths);
-    const mappedH = hData.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const mappedH = hData.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
     const lmsH = interpolateLMS(ageMonths, mappedH as any, 'val');
     const idealHeightForAge = lmsH.M;
 
     // Get ideal weight for age  
     const wData = getStandardData('weight', gender, ageMonths);
-    const mappedW = wData.map(d => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+    const mappedW = wData.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
     const lmsW = interpolateLMS(ageMonths, mappedW as any, 'val');
     const idealWeightForAge = lmsW.M;
 

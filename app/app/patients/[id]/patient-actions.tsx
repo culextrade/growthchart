@@ -116,7 +116,7 @@ export function MeasurementRow({
     patientId,
     detailedAge,
 }: {
-    measurement: { id: string; date: string; weight: number; height: number; bmi: number };
+    measurement: { id: string; date: string; weight: number; height: number; bmi: number; headCircumference?: number; armCircumference?: number; subscapularSkinfold?: number; tricepsSkinfold?: number };
     patientId: string;
     detailedAge: string;
 }) {
@@ -126,7 +126,7 @@ export function MeasurementRow({
     if (editing) {
         return (
             <form
-                className="flex flex-col gap-2 border-b pb-3 last:border-0 p-2 bg-muted/20 rounded-lg animate-in fade-in"
+                className="flex flex-col gap-3 p-4 bg-muted/10 rounded-2xl animate-in fade-in transition-all border border-border/50 shadow-[0_4px_14px_0_rgb(0,0,0,0.02)] mb-3"
                 action={(formData) => {
                     startTransition(async () => {
                         await updateMeasurement(measurement.id, patientId, formData);
@@ -134,47 +134,40 @@ export function MeasurementRow({
                     });
                 }}
             >
-                <div className="flex items-center gap-2 flex-wrap">
-                    <input
-                        type="date"
-                        name="date"
-                        defaultValue={measurement.date}
-                        required
-                        className="px-2 py-1 border rounded text-xs bg-white focus:ring-2 ring-primary/20 outline-none"
-                        title="Tanggal pengukuran"
-                    />
-                    <input
-                        type="number"
-                        step="0.1"
-                        name="weight"
-                        defaultValue={measurement.weight || ""}
-                        placeholder="BB (kg)"
-                        className="px-2 py-1 border rounded text-xs bg-white focus:ring-2 ring-primary/20 outline-none w-20"
-                    />
-                    <input
-                        type="number"
-                        step="0.1"
-                        name="height"
-                        defaultValue={measurement.height || ""}
-                        placeholder="TB (cm)"
-                        className="px-2 py-1 border rounded text-xs bg-white focus:ring-2 ring-primary/20 outline-none w-20"
-                    />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">Tanggal</label>
+                        <input type="date" name="date" required defaultValue={measurement.date} title="Tanggal Pengukuran" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">BB (kg)</label>
+                        <input type="number" step="0.1" name="weight" defaultValue={measurement.weight || ''} placeholder="BB" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full font-bold" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">TB (cm)</label>
+                        <input type="number" step="0.1" name="height" defaultValue={measurement.height || ''} placeholder="TB" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full font-bold" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">LK (cm)</label>
+                        <input type="number" step="0.1" name="headCircumference" defaultValue={measurement.headCircumference || ''} placeholder="LK" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">LiLA (cm)</label>
+                        <input type="number" step="0.1" name="armCircumference" defaultValue={measurement.armCircumference || ''} placeholder="LiLA" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">Subskapula (mm)</label>
+                        <input type="number" step="0.1" name="subscapularSkinfold" defaultValue={measurement.subscapularSkinfold || ''} placeholder="SS" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold text-muted-foreground ml-1">Triseps (mm)</label>
+                        <input type="number" step="0.1" name="tricepsSkinfold" defaultValue={measurement.tricepsSkinfold || ''} placeholder="TS" className="px-3 py-2 text-sm border border-border rounded-xl bg-background focus:ring-2 ring-primary/20 outline-none transition-shadow w-full" />
+                    </div>
                 </div>
-                <div className="flex gap-1">
-                    <button
-                        type="submit"
-                        disabled={isPending}
-                        className="inline-flex items-center gap-1 rounded bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground disabled:opacity-50"
-                    >
-                        {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                        Simpan
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setEditing(false)}
-                        className="inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted/50"
-                    >
-                        <X className="h-3 w-3" /> Batal
+                <div className="flex justify-end gap-2 mt-2 pt-3 border-t border-border/50">
+                    <button type="button" onClick={() => setEditing(false)} className="px-4 py-2 text-sm font-semibold rounded-xl text-muted-foreground hover:bg-muted transition-colors">Batal</button>
+                    <button type="submit" disabled={isPending} className="px-5 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_4px_14px_0_hsl(var(--primary)/0.39)] outline-none focus-visible:ring-2 ring-offset-2 ring-primary disabled:opacity-50 inline-flex items-center gap-2">
+                        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Simpan
                     </button>
                 </div>
             </form>
@@ -182,39 +175,29 @@ export function MeasurementRow({
     }
 
     return (
-        <div className="flex flex-col gap-1 border-b pb-3 last:border-0 group">
+        <div className="flex flex-col gap-2 p-3 hover:bg-muted/30 rounded-2xl transition-colors group mb-1 border border-transparent hover:border-border/50">
             <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">{measurement.date}</span>
-                <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{detailedAge}</span>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 ml-1">
-                        <button
-                            onClick={() => setEditing(true)}
-                            className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                            title="Edit"
-                        >
-                            <Pencil className="h-3 w-3" />
+                <span className="text-sm font-semibold tracking-tight">{measurement.date}</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full">{detailedAge}</span>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 ml-1">
+                        <button onClick={() => setEditing(true)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95" title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                            disabled={isPending}
-                            onClick={() => {
-                                if (!confirm("Hapus data kunjungan ini?")) return;
-                                startTransition(async () => {
-                                    await deleteMeasurement(measurement.id, patientId);
-                                });
-                            }}
-                            className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50"
-                            title="Hapus"
-                        >
-                            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        <button disabled={isPending} onClick={() => { if (!confirm("Hapus data kunjungan ini?")) return; startTransition(async () => { await deleteMeasurement(measurement.id, patientId); }); }} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-muted-foreground hover:text-red-500 transition-all active:scale-95 disabled:opacity-50" title="Hapus">
+                            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
                     </div>
                 </div>
             </div>
-            <div className="flex gap-4 text-sm">
-                {measurement.weight > 0 && <span><strong>W:</strong> {measurement.weight}kg</span>}
-                {measurement.height > 0 && <span><strong>H:</strong> {measurement.height}cm</span>}
-                {measurement.bmi > 0 && <span><strong>BMI:</strong> {measurement.bmi}</span>}
+            <div className="flex gap-x-4 gap-y-1 text-sm flex-wrap text-muted-foreground mt-0.5">
+                {measurement.weight > 0 && <span className="text-foreground"><strong className="font-semibold text-muted-foreground">BB:</strong> <span className="font-semibold tracking-tight">{measurement.weight}</span>kg</span>}
+                {measurement.height > 0 && <span className="text-foreground"><strong className="font-semibold text-muted-foreground">TB:</strong> <span className="font-semibold tracking-tight">{measurement.height}</span>cm</span>}
+                {measurement.bmi > 0 && <span><strong className="font-semibold text-muted-foreground">IMT:</strong> {measurement.bmi}</span>}
+                {measurement.headCircumference ? <span><strong className="font-semibold text-muted-foreground">LK:</strong> {measurement.headCircumference}cm</span> : null}
+                {measurement.armCircumference ? <span><strong className="font-semibold text-muted-foreground">LiLA:</strong> {measurement.armCircumference}cm</span> : null}
+                {measurement.subscapularSkinfold ? <span><strong className="font-semibold text-muted-foreground">SS:</strong> {measurement.subscapularSkinfold}mm</span> : null}
+                {measurement.tricepsSkinfold ? <span><strong className="font-semibold text-muted-foreground">TS:</strong> {measurement.tricepsSkinfold}mm</span> : null}
             </div>
         </div>
     );

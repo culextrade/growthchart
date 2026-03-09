@@ -58,18 +58,25 @@ export async function createPatient(formData: FormData) {
 }
 
 export async function addMeasurement(patientId: string, formData: FormData) {
-    const weightVal = formData.get("weight");
-    const heightVal = formData.get("height");
+    const parseOptionalFloat = (name: string) => {
+        const val = formData.get(name);
+        if (!val || (val as string).trim() === '') return null;
+        const num = parseFloat(val as string);
+        return isNaN(num) ? null : num;
+    };
 
-    const weight = weightVal ? parseFloat(weightVal as string) : null;
-    const height = heightVal ? parseFloat(heightVal as string) : null;
+    const weight = parseOptionalFloat('weight');
+    const height = parseOptionalFloat('height');
+    const headCircumference = parseOptionalFloat('headCircumference');
+    const armCircumference = parseOptionalFloat('armCircumference');
+    const subscapularSkinfold = parseOptionalFloat('subscapularSkinfold');
+    const tricepsSkinfold = parseOptionalFloat('tricepsSkinfold');
 
     const date = new Date(formData.get("date") as string || new Date().toISOString());
 
     const session = await getServerSession(authOptions);
     if (!session || !session.user) throw new Error("Unauthorized");
 
-    // Get tenant_id from patient to verify they belong to current active hospital
     const patient = await prisma.patient.findUnique({
         where: { id: patientId, tenant_id: (session.user as any).tenant_id },
         select: { tenant_id: true }
@@ -82,6 +89,10 @@ export async function addMeasurement(patientId: string, formData: FormData) {
             patientId,
             weight,
             height,
+            headCircumference,
+            armCircumference,
+            subscapularSkinfold,
+            tricepsSkinfold,
             date,
             tenant_id: patient.tenant_id
         }
@@ -138,14 +149,23 @@ export async function updateMeasurement(measurementId: string, patientId: string
     if (!existing) throw new Error("Measurement not found or unauthorized");
 
     const date = new Date(formData.get("date") as string);
-    const weightVal = formData.get("weight");
-    const heightVal = formData.get("height");
-    const weight = weightVal ? parseFloat(weightVal as string) : null;
-    const height = heightVal ? parseFloat(heightVal as string) : null;
+    const parseOptionalFloat = (name: string) => {
+        const val = formData.get(name);
+        if (!val || (val as string).trim() === '') return null;
+        const num = parseFloat(val as string);
+        return isNaN(num) ? null : num;
+    };
+
+    const weight = parseOptionalFloat('weight');
+    const height = parseOptionalFloat('height');
+    const headCircumference = parseOptionalFloat('headCircumference');
+    const armCircumference = parseOptionalFloat('armCircumference');
+    const subscapularSkinfold = parseOptionalFloat('subscapularSkinfold');
+    const tricepsSkinfold = parseOptionalFloat('tricepsSkinfold');
 
     await prisma.measurement.update({
         where: { id: measurementId },
-        data: { date, weight, height },
+        data: { date, weight, height, headCircumference, armCircumference, subscapularSkinfold, tricepsSkinfold },
     });
 
     revalidatePath(`/patients/${patientId}`);
