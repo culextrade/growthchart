@@ -84,7 +84,8 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
             lastMeasurement.weight,
             lastMeasurement.height, // in cm
             lastMeasurement.ageMonths,
-            patient.gender as 'male' | 'female'
+            patient.gender as 'male' | 'female',
+            lastMeasurement.headCircumference
         );
 
         trend = getGrowthTrend(
@@ -338,6 +339,33 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                                             <p className="text-xs text-muted-foreground text-center italic leading-relaxed">
                                                 IMT/U tidak ditampilkan — Waterlow tidak menunjukkan overweight/obesitas ({interpretation.waterlowPercent}%)
                                             </p>
+                                        </div>
+                                    )}
+
+                                    {/* Lingkar Kepala (LK) / Head Circumference */}
+                                    {interpretation.headCircumference && (
+                                        <div className={`group p-5 rounded-2xl border-2 border-transparent transition-all ${interpretation.isCDC ? 'bg-blue-50/50 hover:bg-blue-50/80 hover:border-blue-100' : 'bg-green-50/50 hover:bg-green-50/80 hover:border-green-100'
+                                            }`}>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="p-2 bg-white rounded-lg shadow-xs border">
+                                                    <Activity className={`h-4 w-4 ${interpretation.isCDC ? 'text-blue-500' : 'text-green-600'}`} />
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Lingkar Kepala (Kurva Nellhaus)</span>
+                                            </div>
+                                            <div className={`text-xl font-black mb-1 ${getStatusColor(interpretation.headCircumference)}`}>
+                                                {interpretation.headCircumference}
+                                            </div>
+                                            <div className="text-sm font-bold text-muted-foreground">
+                                                Z-Score: <span className="text-foreground">{interpretation.headCircumferenceZScore} SD</span>
+                                                {interpretation.headCircumferencePercentile !== null && (
+                                                    <> (P{Math.round(interpretation.headCircumferencePercentile)})</>
+                                                )}
+                                            </div>
+                                            <div className="mt-3 pt-3 border-t border-border/50 italic opacity-80">
+                                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                                    {interpretation.headCircumferenceReason}
+                                                </p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

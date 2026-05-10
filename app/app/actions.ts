@@ -9,6 +9,10 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+function toTitleCase(str: string): string {
+    return str.trim().toLowerCase().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 export async function getPatients() {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) throw new Error("Unauthorized");
@@ -38,10 +42,25 @@ export async function createPatient(formData: FormData) {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) throw new Error("Unauthorized");
 
-    const name = formData.get("name") as string;
+    const name = toTitleCase(formData.get("name") as string);
     const dob = new Date(formData.get("dob") as string);
     const gender = formData.get("gender") as string;
-    const parentName = formData.get("parentName") as string;
+    const parentNameRaw = formData.get("parentName") as string;
+    const parentName = parentNameRaw ? toTitleCase(parentNameRaw) : null;
+    const tenant_id = (session.user as any).tenant_id;
+
+    // Duplicate Check
+    const existing = await prisma.patient.findFirst({
+        where: {
+            tenant_id,
+            name: { equals: name, mode: 'insensitive' },
+            dob: { equals: dob }
+        }
+    });
+
+    if (existing) {
+        return { error: "Patient data with the same name and date of birth already exists." };
+    }
 
     await prisma.patient.create({
         data: {
@@ -50,11 +69,12 @@ export async function createPatient(formData: FormData) {
             gender,
             parentName,
             userId: (session.user as any).id,
-            tenant_id: (session.user as any).tenant_id
+            tenant_id
         },
     });
 
     revalidatePath("/dashboard");
+    return { success: true };
 }
 
 export async function addMeasurement(patientId: string, formData: FormData) {
@@ -71,7 +91,6 @@ export async function addMeasurement(patientId: string, formData: FormData) {
     const armCircumference = parseOptionalFloat('armCircumference');
     const subscapularSkinfold = parseOptionalFloat('subscapularSkinfold');
     const tricepsSkinfold = parseOptionalFloat('tricepsSkinfold');
-
     const date = new Date(formData.get("date") as string || new Date().toISOString());
 
     const session = await getServerSession(authOptions);
@@ -98,7 +117,6 @@ export async function addMeasurement(patientId: string, formData: FormData) {
         }
     });
 
-
     revalidatePath(`/patients/${patientId}`);
 }
 
@@ -106,15 +124,29 @@ export async function updatePatient(id: string, formData: FormData) {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) throw new Error("Unauthorized");
 
-    const existing = await prisma.patient.findUnique({
-        where: { id, tenant_id: (session.user as any).tenant_id },
-    });
+    const tenant_id = (session.user as any).tenant_id;
+    const existing = await prisma.patient.findUnique({ where: { id, tenant_id } });
     if (!existing) throw new Error("Patient not found or unauthorized");
 
-    const name = formData.get("name") as string;
+    const name = toTitleCase(formData.get("name") as string);
     const dob = new Date(formData.get("dob") as string);
     const gender = formData.get("gender") as string;
-    const parentName = (formData.get("parentName") as string) || null;
+    const parentNameRaw = formData.get("parentName") as string;
+    const parentName = parentNameRaw ? toTitleCase(parentNameRaw) : null;
+
+    // Duplicate Check excluding self
+    const duplicate = await prisma.patient.findFirst({
+        where: {
+            tenant_id,
+            name: { equals: name, mode: 'insensitive' },
+            dob: { equals: dob },
+            id: { not: id }
+        }
+    });
+
+    if (duplicate) {
+        return { error: "Patient data with the same name and date of birth already exists." };
+    }
 
     await prisma.patient.update({
         where: { id },
@@ -123,6 +155,7 @@ export async function updatePatient(id: string, formData: FormData) {
 
     revalidatePath(`/patients/${id}`);
     revalidatePath("/dashboard");
+    return { success: true };
 }
 
 export async function deletePatient(id: string) {
@@ -190,14 +223,11 @@ export async function removeDuplicatePatients(): Promise<number> {
     if (!session || !session.user) throw new Error("Unauthorized");
 
     const tenantId = (session.user as any).tenant_id;
-
-    // Get all patients with measurement count
     const patients = await prisma.patient.findMany({
         where: { tenant_id: tenantId },
         include: { _count: { select: { measurements: true } } },
     });
 
-    // Group by normalized name + dob
     const groups = new Map<string, typeof patients>();
     for (const p of patients) {
         const key = `${p.name.trim().toLowerCase()}|${p.dob.toISOString().split('T')[0]}`;
@@ -205,32 +235,79 @@ export async function removeDuplicatePatients(): Promise<number> {
         groups.get(key)!.push(p);
     }
 
-    // Collect IDs to delete: from groups with >1 patient, delete those with 0 measurements
     const idsToDelete: string[] = [];
     for (const [, group] of groups) {
         if (group.length <= 1) continue;
-
-        // Keep patients with measurements, collect empty ones for deletion
         const withData = group.filter(p => p._count.measurements > 0);
         const withoutData = group.filter(p => p._count.measurements === 0);
-
-        // Only delete empty duplicates if at least one patient with data exists,
-        // OR if all are empty, keep one (the oldest created)
         if (withData.length > 0) {
             idsToDelete.push(...withoutData.map(p => p.id));
         } else {
-            // All empty — keep the first (oldest), delete the rest
             const sorted = [...withoutData].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
             idsToDelete.push(...sorted.slice(1).map(p => p.id));
         }
     }
 
     if (idsToDelete.length > 0) {
-        await prisma.patient.deleteMany({
-            where: { id: { in: idsToDelete }, tenant_id: tenantId },
-        });
+        await prisma.patient.deleteMany({ where: { id: { in: idsToDelete }, tenant_id: tenantId } });
     }
 
     revalidatePath("/dashboard");
     return idsToDelete.length;
+}
+
+export async function mergeDuplicatePatients(): Promise<{ mergedGroups: number; deletedRecords: number }> {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) throw new Error("Unauthorized");
+
+    const tenantId = (session.user as any).tenant_id;
+
+    const patients = await prisma.patient.findMany({
+        where: { tenant_id: tenantId },
+        include: { _count: { select: { measurements: true } } },
+        orderBy: { createdAt: 'asc' },
+    });
+
+    const groups = new Map<string, typeof patients>();
+    for (const p of patients) {
+        const key = `${p.name.trim().toLowerCase()}|${p.dob.toISOString().split('T')[0]}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(p);
+    }
+
+    let mergedGroups = 0;
+    let deletedRecords = 0;
+
+    for (const [, group] of groups) {
+        if (group.length <= 1) continue;
+
+        // Primary = most measurements; on tie, keep oldest
+        const sorted = [...group].sort(
+            (a, b) => b._count.measurements - a._count.measurements || a.createdAt.getTime() - b.createdAt.getTime()
+        );
+        const primary = sorted[0];
+        const duplicates = sorted.slice(1);
+        const duplicateIds = duplicates.map(d => d.id);
+
+        // Reassign all measurements from duplicates → primary
+        await prisma.measurement.updateMany({
+            where: { patientId: { in: duplicateIds }, tenant_id: tenantId },
+            data: { patientId: primary.id },
+        });
+
+        // Normalize primary name to Title Case
+        const normalizedName = toTitleCase(primary.name);
+        if (normalizedName !== primary.name) {
+            await prisma.patient.update({ where: { id: primary.id }, data: { name: normalizedName } });
+        }
+
+        // Delete duplicate records
+        await prisma.patient.deleteMany({ where: { id: { in: duplicateIds }, tenant_id: tenantId } });
+
+        mergedGroups++;
+        deletedRecords += duplicateIds.length;
+    }
+
+    revalidatePath("/dashboard");
+    return { mergedGroups, deletedRecords };
 }

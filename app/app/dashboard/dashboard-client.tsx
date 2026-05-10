@@ -3,8 +3,8 @@
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2 } from "lucide-react";
-import { createPatient, updatePatient, deletePatient } from "../actions";
+import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2, GitMerge } from "lucide-react";
+import { createPatient, updatePatient, deletePatient, mergeDuplicatePatients } from "../actions";
 import { calculateDetailedAge } from "@/lib/utils";
 import { LogoutButton } from "@/components/logout-button";
 import { RamadanGreeting } from "@/components/ramadan-greeting";
@@ -20,6 +20,21 @@ interface PatientData {
 
 export function DashboardClient({ patients, userName, userUsername, version }: { patients: PatientData[], userName: string, userUsername: string, version: string }) {
     const [searchQuery, setSearchQuery] = useState("");
+    const [isMerging, startMerge] = useTransition();
+    const router = useRouter();
+
+    const handleMergeDuplicates = () => {
+        if (!confirm("Proses merge akan menggabungkan semua data pengukuran pasien duplikat (nama + tanggal lahir sama) ke dalam satu record. Lanjutkan?")) return;
+        startMerge(async () => {
+            const result = await mergeDuplicatePatients();
+            if (result.mergedGroups === 0) {
+                alert("Tidak ada duplikat ditemukan. Data sudah bersih! ✅");
+            } else {
+                alert(`Merge selesai! ✅\n\n${result.mergedGroups} grup duplikat digabung.\n${result.deletedRecords} record duplikat dihapus.`);
+                router.refresh();
+            }
+        });
+    };
 
     const filteredPatients = useMemo(() => {
         if (!searchQuery.trim()) return patients;
@@ -40,7 +55,12 @@ export function DashboardClient({ patients, userName, userUsername, version }: {
                     </div>
 
                     <div className="flex gap-4 items-center">
-                        <form action={createPatient} className="flex gap-2 items-center">
+                        <form action={async (formData) => {
+                            const res = await createPatient(formData);
+                            if (res?.error) {
+                                alert(res.error);
+                            }
+                        }} className="flex gap-2 items-center">
                             <input type="text" name="name" placeholder="Name" required className="px-3 py-2 border rounded text-sm" />
                             <input type="date" name="dob" required className="px-3 py-2 border rounded text-sm" />
                             <select name="gender" className="px-3 py-2 border rounded text-sm">
@@ -52,6 +72,15 @@ export function DashboardClient({ patients, userName, userUsername, version }: {
                                 Add
                             </button>
                         </form>
+                        <button
+                            onClick={handleMergeDuplicates}
+                            disabled={isMerging}
+                            title="Merge pasien duplikat (nama + DOB sama)"
+                            className="inline-flex items-center gap-2 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 shadow-sm transition-all hover:bg-orange-100 disabled:opacity-50"
+                        >
+                            {isMerging ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitMerge className="h-4 w-4" />}
+                            {isMerging ? 'Merging...' : 'Merge Duplikat'}
+                        </button>
                         <div className="h-8 w-px bg-border mx-1"></div>
                         <div className="flex flex-col items-end mr-2">
                             <span className="text-sm font-bold text-foreground">{userName}</span>
@@ -139,8 +168,12 @@ function PatientCard({ patient }: { patient: PatientData }) {
                     className="relative p-5 flex flex-col gap-3"
                     action={(formData) => {
                         startTransition(async () => {
-                            await updatePatient(patient.id, formData);
-                            setEditing(false);
+                            const res = await updatePatient(patient.id, formData);
+                            if (res?.error) {
+                                alert(res.error);
+                            } else {
+                                setEditing(false);
+                            }
                         });
                     }}
                 >

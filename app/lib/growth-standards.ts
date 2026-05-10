@@ -241,6 +241,12 @@ export interface InterpretationResult {
     waterlowPercent: number;
     waterlowReason: string;
 
+    // Head Circumference (Nellhaus)
+    headCircumference: string | null;
+    headCircumferenceZScore: number | null;
+    headCircumferencePercentile: number | null;
+    headCircumferenceReason: string | null;
+
     // Additional info
     ibw: number;
     heightAge: number;
@@ -332,7 +338,8 @@ export function getInterpretation(
     actualWeight: number,
     actualHeight: number,
     ageMonths: number,
-    gender: 'male' | 'female'
+    gender: 'male' | 'female',
+    actualHeadCircumference?: number
 ): InterpretationResult {
     const isCDC = ageMonths > 60;
 
@@ -382,6 +389,28 @@ export function getInterpretation(
     const wfhPercentile = zScoreToPercentile(wfhZScore);
     const bmiPercentile = zScoreToPercentile(bmiZScore);
 
+    // Head Circumference Interpretation
+    let hcStatus = null;
+    let hcZScore = null;
+    let hcPercentile = null;
+    let hcReason = null;
+
+    if (actualHeadCircumference) {
+        const calculatedHcZScore = calculateZScore(actualHeadCircumference, ageMonths, gender, 'headCircumference');
+        const calculatedHcPercentile = zScoreToPercentile(calculatedHcZScore);
+        
+        hcZScore = parseFloat(calculatedHcZScore.toFixed(2));
+        hcPercentile = parseFloat(calculatedHcPercentile.toFixed(1));
+        hcStatus = interpretHeadCircumference(calculatedHcZScore);
+        
+        const hcData = getStandardData('headCircumference', gender, ageMonths);
+        const mappedHc = hcData.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+        const lmsHc = interpolateLMS(ageMonths, mappedHc as any, 'val');
+        const idealHc = lmsHc.M;
+        
+        hcReason = `LK: ${actualHeadCircumference.toFixed(1)} cm, Median LK: ${idealHc.toFixed(1)} cm, Z-Score: ${calculatedHcZScore.toFixed(2)} (Standar Kurva Nellhaus)`;
+    }
+
     return {
         isCDC,
         // Height-for-Age (TB/U)
@@ -413,6 +442,12 @@ export function getInterpretation(
         waterlowPercent: parseFloat(percentWeightForHeight.toFixed(1)),
         waterlowReason: `BB Aktual: ${actualWeight.toFixed(1)} kg / BB Ideal (Height Age): ${idealWeight.toFixed(1)} kg × 100 = ${percentWeightForHeight.toFixed(1)}%`,
 
+        // Head Circumference
+        headCircumference: hcStatus,
+        headCircumferenceZScore: hcZScore,
+        headCircumferencePercentile: hcPercentile,
+        headCircumferenceReason: hcReason,
+
         // Additional info
         ibw: parseFloat(idealWeight.toFixed(2)),
         heightAge: parseFloat(heightAge.toFixed(1))
@@ -433,9 +468,10 @@ export function getWaterlowClassification(
     actualWeight: number,
     actualHeight: number,
     ageMonths: number,
-    gender: 'male' | 'female'
+    gender: 'male' | 'female',
+    actualHeadCircumference?: number
 ): WaterlowResult {
-    const result = getInterpretation(actualWeight, actualHeight, ageMonths, gender);
+    const result = getInterpretation(actualWeight, actualHeight, ageMonths, gender, actualHeadCircumference);
 
     return {
         wasting: result.waterlowStatus,
