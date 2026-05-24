@@ -13,6 +13,20 @@ function toTitleCase(str: string): string {
     return str.trim().toLowerCase().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+function normalizePatientName(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getJakartaDateString(date: Date): string {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    return formatter.format(new Date(date));
+}
+
 export async function getPatients() {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) throw new Error("Unauthorized");
@@ -43,22 +57,24 @@ export async function createPatient(formData: FormData) {
     if (!session || !session.user) throw new Error("Unauthorized");
 
     const name = toTitleCase(formData.get("name") as string);
+    const searchName = normalizePatientName(name);
     const dob = new Date(formData.get("dob") as string);
     const gender = formData.get("gender") as string;
     const parentNameRaw = formData.get("parentName") as string;
     const parentName = parentNameRaw ? toTitleCase(parentNameRaw) : null;
     const tenant_id = (session.user as any).tenant_id;
 
-    // Duplicate Check
-    const existing = await prisma.patient.findFirst({
-        where: {
-            tenant_id,
-            name: { equals: name, mode: 'insensitive' },
-            dob: { equals: dob }
-        }
+    // Duplicate Check using normalized name & Jakarta date representation
+    const candidates = await prisma.patient.findMany({
+        where: { tenant_id }
     });
 
-    if (existing) {
+    const duplicate = candidates.find(p => 
+        normalizePatientName(p.name) === searchName &&
+        getJakartaDateString(p.dob) === getJakartaDateString(dob)
+    );
+
+    if (duplicate) {
         return { error: "Patient data with the same name and date of birth already exists." };
     }
 
@@ -129,20 +145,21 @@ export async function updatePatient(id: string, formData: FormData) {
     if (!existing) throw new Error("Patient not found or unauthorized");
 
     const name = toTitleCase(formData.get("name") as string);
+    const searchName = normalizePatientName(name);
     const dob = new Date(formData.get("dob") as string);
     const gender = formData.get("gender") as string;
     const parentNameRaw = formData.get("parentName") as string;
     const parentName = parentNameRaw ? toTitleCase(parentNameRaw) : null;
 
-    // Duplicate Check excluding self
-    const duplicate = await prisma.patient.findFirst({
-        where: {
-            tenant_id,
-            name: { equals: name, mode: 'insensitive' },
-            dob: { equals: dob },
-            id: { not: id }
-        }
+    // Duplicate Check excluding self, using normalized name & Jakarta date representation
+    const candidates = await prisma.patient.findMany({
+        where: { tenant_id, id: { not: id } }
     });
+
+    const duplicate = candidates.find(p => 
+        normalizePatientName(p.name) === searchName &&
+        getJakartaDateString(p.dob) === getJakartaDateString(dob)
+    );
 
     if (duplicate) {
         return { error: "Patient data with the same name and date of birth already exists." };
@@ -230,7 +247,7 @@ export async function removeDuplicatePatients(): Promise<number> {
 
     const groups = new Map<string, typeof patients>();
     for (const p of patients) {
-        const key = `${p.name.trim().toLowerCase()}|${p.dob.toISOString().split('T')[0]}`;
+        const key = `${normalizePatientName(p.name)}|${getJakartaDateString(p.dob)}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(p);
     }
@@ -270,7 +287,7 @@ export async function mergeDuplicatePatients(): Promise<{ mergedGroups: number; 
 
     const groups = new Map<string, typeof patients>();
     for (const p of patients) {
-        const key = `${p.name.trim().toLowerCase()}|${p.dob.toISOString().split('T')[0]}`;
+        const key = `${normalizePatientName(p.name)}|${getJakartaDateString(p.dob)}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(p);
     }

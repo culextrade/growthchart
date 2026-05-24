@@ -102,8 +102,7 @@ export function getStandardData(metric: MetricType, gender: 'male' | 'female', a
 
     // New chart types
     if (metric === 'headCircumference') {
-        if (!isCDC) return (gender === 'male' ? WHO_BOYS_HEAD_CIRCUMFERENCE : WHO_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
-        return (gender === 'male' ? CDC_BOYS_HEAD_CIRCUMFERENCE : CDC_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
+        return (gender === 'male' ? WHO_BOYS_HEAD_CIRCUMFERENCE : WHO_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
     }
     if (metric === 'armCircumference') return (gender === 'male' ? WHO_BOYS_ARM_CIRCUMFERENCE : WHO_GIRLS_ARM_CIRCUMFERENCE) as LMS[];
     if (metric === 'subscapularSkinfold') return (gender === 'male' ? WHO_BOYS_SUBSCAPULAR_SKINFOLD : WHO_GIRLS_SUBSCAPULAR_SKINFOLD) as LMS[];
@@ -390,25 +389,30 @@ export function getInterpretation(
     const bmiPercentile = zScoreToPercentile(bmiZScore);
 
     // Head Circumference Interpretation
-    let hcStatus = null;
-    let hcZScore = null;
-    let hcPercentile = null;
-    let hcReason = null;
+    let hcStatus = 'N/A';
+    let hcZScore: number | null = null;
+    let hcPercentile: number | null = null;
+    let hcReason: string | null = null;
 
     if (actualHeadCircumference) {
-        const calculatedHcZScore = calculateZScore(actualHeadCircumference, ageMonths, gender, 'headCircumference');
-        const calculatedHcPercentile = zScoreToPercentile(calculatedHcZScore);
-        
-        hcZScore = parseFloat(calculatedHcZScore.toFixed(2));
-        hcPercentile = parseFloat(calculatedHcPercentile.toFixed(1));
-        hcStatus = interpretHeadCircumference(calculatedHcZScore);
-        
-        const hcData = getStandardData('headCircumference', gender, ageMonths);
-        const mappedHc = hcData.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
-        const lmsHc = interpolateLMS(ageMonths, mappedHc as any, 'val');
-        const idealHc = lmsHc.M;
-        
-        hcReason = `LK: ${actualHeadCircumference.toFixed(1)} cm, Median LK: ${idealHc.toFixed(1)} cm, Z-Score: ${calculatedHcZScore.toFixed(2)} (Standar Kurva Nellhaus)`;
+        if (ageMonths <= 60) {
+            const calculatedHcZScore = calculateZScore(actualHeadCircumference, ageMonths, gender, 'headCircumference');
+            const calculatedHcPercentile = zScoreToPercentile(calculatedHcZScore);
+            
+            hcZScore = parseFloat(calculatedHcZScore.toFixed(2));
+            hcPercentile = parseFloat(calculatedHcPercentile.toFixed(1));
+            hcStatus = interpretHeadCircumference(calculatedHcZScore);
+            
+            const hcData = getStandardData('headCircumference', gender, ageMonths);
+            const mappedHc = hcData.map((d: any) => ({ ...d, val: (d as any).length_cm !== undefined ? (d as any).length_cm : (d as any).age_months }));
+            const lmsHc = interpolateLMS(ageMonths, mappedHc as any, 'val');
+            const idealHc = lmsHc.M;
+            
+            hcReason = `LK: ${actualHeadCircumference.toFixed(1)} cm, Median LK: ${idealHc.toFixed(1)} cm, Z-Score: ${calculatedHcZScore.toFixed(2)} (Standar Kurva Nellhaus/WHO)`;
+        } else {
+            hcStatus = 'Tidak Terklasifikasi';
+            hcReason = `Pengukuran LK hanya didukung untuk usia 0-60 bulan sesuai standar klinis.`;
+        }
     }
 
     return {

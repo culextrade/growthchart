@@ -3,8 +3,8 @@
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2, GitMerge } from "lucide-react";
-import { createPatient, updatePatient, deletePatient, mergeDuplicatePatients } from "../actions";
+import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2 } from "lucide-react";
+import { createPatient, updatePatient, deletePatient } from "../actions";
 import { calculateDetailedAge } from "@/lib/utils";
 import { LogoutButton } from "@/components/logout-button";
 import { RamadanGreeting } from "@/components/ramadan-greeting";
@@ -20,21 +20,7 @@ interface PatientData {
 
 export function DashboardClient({ patients, userName, userUsername, version }: { patients: PatientData[], userName: string, userUsername: string, version: string }) {
     const [searchQuery, setSearchQuery] = useState("");
-    const [isMerging, startMerge] = useTransition();
     const router = useRouter();
-
-    const handleMergeDuplicates = () => {
-        if (!confirm("Proses merge akan menggabungkan semua data pengukuran pasien duplikat (nama + tanggal lahir sama) ke dalam satu record. Lanjutkan?")) return;
-        startMerge(async () => {
-            const result = await mergeDuplicatePatients();
-            if (result.mergedGroups === 0) {
-                alert("Tidak ada duplikat ditemukan. Data sudah bersih! ✅");
-            } else {
-                alert(`Merge selesai! ✅\n\n${result.mergedGroups} grup duplikat digabung.\n${result.deletedRecords} record duplikat dihapus.`);
-                router.refresh();
-            }
-        });
-    };
 
     const filteredPatients = useMemo(() => {
         if (!searchQuery.trim()) return patients;
@@ -72,15 +58,6 @@ export function DashboardClient({ patients, userName, userUsername, version }: {
                                 Add
                             </button>
                         </form>
-                        <button
-                            onClick={handleMergeDuplicates}
-                            disabled={isMerging}
-                            title="Merge pasien duplikat (nama + DOB sama)"
-                            className="inline-flex items-center gap-2 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 shadow-sm transition-all hover:bg-orange-100 disabled:opacity-50"
-                        >
-                            {isMerging ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitMerge className="h-4 w-4" />}
-                            {isMerging ? 'Merging...' : 'Merge Duplikat'}
-                        </button>
                         <div className="h-8 w-px bg-border mx-1"></div>
                         <div className="flex flex-col items-end mr-2">
                             <span className="text-sm font-bold text-foreground">{userName}</span>

@@ -90,7 +90,7 @@ const CHART_OPTIONS: ChartOption[] = [
     { type: "height", label: "heightForAge", labelFull: "heightForAgeFull", category: "core", metric: "height" },
     { type: "weightForHeight", label: "weightForHeight", labelFull: "weightForHeightFull", category: "core", metric: "weightForHeight" },
     { type: "bmi", label: "bmiForAge", labelFull: "bmiForAgeFull", category: "core", metric: "bmi" },
-    { type: "headCircumference", label: "headCircForAge", labelFull: "headCircForAgeFull", category: "core", metric: "headCircumference" },
+    { type: "headCircumference", label: "headCircForAge", labelFull: "headCircForAgeFull", category: "core", whoOnly: true, metric: "headCircumference" },
     { type: "armCircumference", label: "armCircForAge", labelFull: "armCircForAgeFull", category: "core", whoOnly: true, metric: "armCircumference" },
     { type: "subscapularSkinfold", label: "subscapularSkinfold", labelFull: "subscapularSkinfoldFull", category: "body", whoOnly: true, metric: "subscapularSkinfold" },
     { type: "tricepsSkinfold", label: "tricepsSkinfold", labelFull: "tricepsSkinfoldFull", category: "body", whoOnly: true, metric: "tricepsSkinfold" },
