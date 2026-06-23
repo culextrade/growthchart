@@ -492,6 +492,73 @@ export function GrowthChart({
                 ? [24, 240]
                 : [0, 60];
 
+    const yDomain = useMemo(() => {
+        if (isSpecialView || chartData.length === 0) {
+            return ["auto", "auto"];
+        }
+
+        const minAge = xDomain[0];
+        const maxAge = xDomain[1];
+
+        // Filter chartData points that are within xDomain
+        const visibleChartPoints = chartData.filter((d: any) => d.age >= minAge && d.age <= maxAge);
+        if (visibleChartPoints.length === 0) {
+            return ["auto", "auto"];
+        }
+
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+
+        visibleChartPoints.forEach((d: any) => {
+            if (isCDC) {
+                const vals = [d.P3, d.P5, d.P10, d.P25, d.P50, d.P75, d.P90, d.P95, d.P97].filter(v => typeof v === "number" && !isNaN(v));
+                if (vals.length > 0) {
+                    minVal = Math.min(minVal, ...vals);
+                    maxVal = Math.max(maxVal, ...vals);
+                }
+            } else {
+                const vals = [d.s3neg, d.s2neg, d.s1neg, d.median, d.s1pos, d.s2pos, d.s3pos].filter(v => typeof v === "number" && !isNaN(v));
+                if (vals.length > 0) {
+                    minVal = Math.min(minVal, ...vals);
+                    maxVal = Math.max(maxVal, ...vals);
+                }
+            }
+        });
+
+        // Also check patient measurements to make sure we don't clip them
+        userPoints.forEach((p: any) => {
+            if (p.age >= minAge && p.age <= maxAge && typeof p.val === "number" && !isNaN(p.val)) {
+                minVal = Math.min(minVal, p.val);
+                maxVal = Math.max(maxVal, p.val);
+            }
+        });
+
+        if (minVal === Infinity || maxVal === -Infinity) {
+            return ["auto", "auto"];
+        }
+
+        // Add padding/buffer: 5% of the range, with a minimum of 1 unit
+        const range = maxVal - minVal;
+        const buffer = Math.max(range * 0.05, 1);
+        
+        let calculatedMin = minVal - buffer;
+        let calculatedMax = maxVal + buffer;
+
+        // Ensure we don't go below 0
+        calculatedMin = Math.max(0, calculatedMin);
+
+        // Round bounds cleanly
+        if (effectiveChartType === "headCircumference") {
+            calculatedMin = Math.floor(calculatedMin);
+            calculatedMax = Math.ceil(calculatedMax);
+        } else {
+            calculatedMin = Math.floor(calculatedMin * 2) / 2;
+            calculatedMax = Math.ceil(calculatedMax * 2) / 2;
+        }
+
+        return [calculatedMin, calculatedMax];
+    }, [chartData, userPoints, isCDC, isSpecialView, xDomain[0], xDomain[1], effectiveChartType]);
+
     const categoryCharts = CHART_OPTIONS.filter(o => o.category === activeCategory).filter(o => o.type !== "bmi" || showBmi);
 
     return (
@@ -639,7 +706,7 @@ export function GrowthChart({
                                         label={{ value: effectiveChartType === "weightForHeight" ? getText("height_cm", lang) : isCDC ? `${getText("age", lang)} (${getText("years", lang)})` : `${getText("age", lang)} (${getText("months", lang)})`, position: "insideBottom", offset: -10, fontSize: 12, fill: "#64748b" }}
                                     />
                                     <YAxis
-                                        domain={["dataMin - 1", "dataMax + 1"]}
+                                        domain={yDomain}
                                         tick={{ fontSize: 11, fill: "#64748b" }}
                                         axisLine={{ stroke: "#cbd5e1" }}
                                         tickFormatter={(val: number) => Number.isFinite(val) ? val.toFixed(1) : ""}
