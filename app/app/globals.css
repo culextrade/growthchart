@@ -31,19 +31,19 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 180 82% 24%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary-foreground: 180 82% 24%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent-foreground: 180 82% 24%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 180 82% 24%;
     --radius: 0.5rem;
   }
 
@@ -71,20 +71,20 @@
 
   /* Blue Theme (Boy) */
   .theme-blue {
-    --primary: 221 83% 53%;
-    /* Blue-500 */
+    --primary: 180 82% 24%;
+    /* SEHA Teal #0B6E6E */
     --primary-foreground: 210 40% 98%;
-    --ring: 221 83% 53%;
+    --ring: 180 82% 24%;
     --background: 210 20% 98%;
     /* Light bluish gray */
   }
 
   /* Pink Theme (Girl) */
   .theme-pink {
-    --primary: 330 81% 60%;
-    /* Pink-500 */
+    --primary: 180 82% 24%;
+    /* SEHA Teal #0B6E6E */
     --primary-foreground: 210 40% 98%;
-    --ring: 330 81% 60%;
+    --ring: 180 82% 24%;
     --background: 330 20% 98%;
     /* Light pinkish gray */
   }

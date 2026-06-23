@@ -30,6 +30,7 @@ Terdapat tiga tombol tab di bagian atas grafik. Klik salah satu untuk berpindah 
 - **Weight**: Evaluasi berat badan anak (kg).
 - **Height**: Evaluasi tinggi/panjang badan anak (cm).
 - **BMI**: Indeks Massa Tubuh untuk mengevaluasi komposisi (kg/m²).
+- **Lingkar Kepala (LK)**: Evaluasi pertumbuhan lingkar kepala anak (cm) berdasarkan kurva standar.
 
 ### B. Evaluasi Akurat (Hover Insight)
 
@@ -55,6 +56,19 @@ Daripada harus membuka tab riwayat secara terpisah, riwayat 3 pemeriksaan terakh
 ### E. Fitur Cetak Kurva (Print Preview CDC)
 
 Khusus untuk kurva standar CDC (sesuai standar arsip / komunikasi yang lebih sering diekspor), tersedia tombol **🖨️ Cetak**. Fungsi ini dapat Dokter gunakan untuk mengekspor status pertumbuhan visual ke format cetak / PDF untuk dijelaskan kepada orangtua dengan lebih mudah.
+
+---
+
+## 3. Khusus: Pemantauan Lingkar Kepala (Kurva Nellhaus)
+
+Aplikasi SEHA+ kini mendukung pemantauan **Lingkar Kepala (LK)** menggunakan standar **Kurva Nellhaus (1968)** dari lahir hingga **usia 10 tahun (120 bulan)**.
+
+*   **Pentingnya Kurva Nellhaus**: Standard WHO hanya mendukung pemantauan LK hingga usia 5 tahun, sedangkan CDC membatasi hingga 3 tahun. Kurva Nellhaus diintegrasikan untuk memberikan kesinambungan pemantauan hingga usia 10 tahun sesuai rekomendasi IDAI.
+*   **Interpretasi Klinis**:
+    *   **Normal**: Z-score di rentang $-2$ hingga $+2$ SD.
+    *   **Mikrosefali (Microcephaly)**: Z-score $< -2$ SD. Menandakan ukuran lingkar kepala yang lebih kecil dari rata-rata seusianya, yang dapat mendeteksi adanya keterlambatan perkembangan volume otak.
+    *   **Makrosefali (Macrocephaly)**: Z-score $> +2$ SD. Menandakan ukuran kepala yang lebih besar dari normal (risiko hidrosefalus atau variasi genetik).
+*   **Kasus Khusus (misal: Cerebral Palsy)**: Pemantauan lingkar kepala pada anak dengan *Cerebral Palsy* (CP) tetap dirujuk ke kurva Nellhaus standar ini untuk memantau deviasi tumbuh kembang (seperti mikrosefali akibat keterbatasan perkembangan volume otak, atau makrosefali akibat hidrosefalus) secara dini.
 
 ---
 

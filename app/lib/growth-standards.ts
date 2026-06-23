@@ -9,6 +9,7 @@ import {
     WHO_GIRLS_BMI_COMPLETE,
 } from './who-data';
 import { WHO_BOYS_HEAD_CIRCUMFERENCE, WHO_GIRLS_HEAD_CIRCUMFERENCE } from './who-head-circumference-data';
+import { NELLHAUS_BOYS_HEAD_CIRCUMFERENCE, NELLHAUS_GIRLS_HEAD_CIRCUMFERENCE } from './nellhaus-head-circumference-data';
 import { WHO_BOYS_ARM_CIRCUMFERENCE, WHO_GIRLS_ARM_CIRCUMFERENCE } from './who-arm-circumference-data';
 import { WHO_BOYS_SUBSCAPULAR_SKINFOLD, WHO_GIRLS_SUBSCAPULAR_SKINFOLD } from './who-subscapular-skinfold-data';
 import { WHO_BOYS_TRICEPS_SKINFOLD, WHO_GIRLS_TRICEPS_SKINFOLD } from './who-triceps-skinfold-data';
@@ -102,7 +103,7 @@ export function getStandardData(metric: MetricType, gender: 'male' | 'female', a
 
     // New chart types
     if (metric === 'headCircumference') {
-        return (gender === 'male' ? WHO_BOYS_HEAD_CIRCUMFERENCE : WHO_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
+        return (gender === 'male' ? NELLHAUS_BOYS_HEAD_CIRCUMFERENCE : NELLHAUS_GIRLS_HEAD_CIRCUMFERENCE) as LMS[];
     }
     if (metric === 'armCircumference') return (gender === 'male' ? WHO_BOYS_ARM_CIRCUMFERENCE : WHO_GIRLS_ARM_CIRCUMFERENCE) as LMS[];
     if (metric === 'subscapularSkinfold') return (gender === 'male' ? WHO_BOYS_SUBSCAPULAR_SKINFOLD : WHO_GIRLS_SUBSCAPULAR_SKINFOLD) as LMS[];
@@ -395,7 +396,7 @@ export function getInterpretation(
     let hcReason: string | null = null;
 
     if (actualHeadCircumference) {
-        if (ageMonths <= 60) {
+        if (ageMonths <= 120) {
             const calculatedHcZScore = calculateZScore(actualHeadCircumference, ageMonths, gender, 'headCircumference');
             const calculatedHcPercentile = zScoreToPercentile(calculatedHcZScore);
             
@@ -408,10 +409,10 @@ export function getInterpretation(
             const lmsHc = interpolateLMS(ageMonths, mappedHc as any, 'val');
             const idealHc = lmsHc.M;
             
-            hcReason = `LK: ${actualHeadCircumference.toFixed(1)} cm, Median LK: ${idealHc.toFixed(1)} cm, Z-Score: ${calculatedHcZScore.toFixed(2)} (Standar Kurva Nellhaus/WHO)`;
+            hcReason = `LK: ${actualHeadCircumference.toFixed(1)} cm, Median LK: ${idealHc.toFixed(1)} cm, Z-Score: ${calculatedHcZScore.toFixed(2)} (Standar Kurva Nellhaus)`;
         } else {
             hcStatus = 'Tidak Terklasifikasi';
-            hcReason = `Pengukuran LK hanya didukung untuk usia 0-60 bulan sesuai standar klinis.`;
+            hcReason = `Pengukuran LK hanya didukung untuk usia 0-120 bulan (10 tahun) sesuai standar klinis Kurva Nellhaus.`;
         }
     }
 

@@ -451,6 +451,9 @@ export function GrowthChart({
                     if (!m.height || m.height <= 0) return false;
                     return true;
                 }
+                if (effectiveChartType === "headCircumference") {
+                    return m.ageMonths <= 120;
+                }
                 if (!isCDC && m.ageMonths > 60) return false;
                 if (isCDC && m.ageMonths < 60) return false;
                 return true;
@@ -481,7 +484,13 @@ export function GrowthChart({
         return <div className="gc-empty">{lang === "id" ? "Data tidak tersedia" : "No data available"}</div>;
     }
 
-    const xDomain = effectiveChartType === "weightForHeight" ? [45, 120] : isCDC ? [24, 240] : [0, 60];
+    const xDomain = effectiveChartType === "weightForHeight"
+        ? [45, 120]
+        : effectiveChartType === "headCircumference"
+            ? [0, 120]
+            : isCDC
+                ? [24, 240]
+                : [0, 60];
 
     const categoryCharts = CHART_OPTIONS.filter(o => o.category === activeCategory).filter(o => o.type !== "bmi" || showBmi);
 
@@ -495,9 +504,11 @@ export function GrowthChart({
                             {getText(currentOption?.labelFull || "growthChart", lang)}
                         </h3>
                         <p className="gc-subtitle">
-                            {currentOption?.whoOnly
-                                ? getText("onlyWho", lang)
-                                : `${getText("standard", lang)}: ${isCDC ? getText("cdcStandard", lang) : getText("whoStandard", lang)}`}
+                            {effectiveChartType === "headCircumference"
+                                ? lang === "id" ? "Standar: Kurva Nellhaus" : "Standard: Nellhaus Curves"
+                                : currentOption?.whoOnly
+                                    ? getText("onlyWho", lang)
+                                    : `${getText("standard", lang)}: ${isCDC ? getText("cdcStandard", lang) : getText("whoStandard", lang)}`}
                         </p>
                     </div>
 
@@ -613,7 +624,15 @@ export function GrowthChart({
                                         dataKey="age"
                                         type="number"
                                         domain={xDomain}
-                                        ticks={effectiveChartType === "weightForHeight" ? [45, 55, 65, 75, 85, 95, 105, 115] : isCDC ? [24, 48, 72, 96, 120, 144, 168, 192, 216, 240] : [0, 12, 24, 36, 48, 60]}
+                                        ticks={
+                                            effectiveChartType === "weightForHeight"
+                                                ? [45, 55, 65, 75, 85, 95, 105, 115]
+                                                : effectiveChartType === "headCircumference"
+                                                    ? [0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120]
+                                                    : isCDC
+                                                        ? [24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+                                                        : [0, 12, 24, 36, 48, 60]
+                                        }
                                         tickFormatter={(m) => effectiveChartType === "weightForHeight" ? `${m}cm` : isCDC ? `${m / 12}y` : `${m}m`}
                                         tick={{ fontSize: 11, fill: "#64748b" }}
                                         axisLine={{ stroke: "#cbd5e1" }}
