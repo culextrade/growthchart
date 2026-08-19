@@ -621,14 +621,12 @@ export function GrowthChart({
                         )}
 
                         {/* Print */}
-                        {isCDC && (
-                            <button
-                                onClick={() => setShowPrintPreview(true)}
-                                className="gc-print-btn"
-                            >
-                                🖨️ {getText("printChart", lang)}
-                            </button>
-                        )}
+                        <button
+                            onClick={() => setShowPrintPreview(true)}
+                            className="gc-print-btn"
+                        >
+                            🖨️ {getText("printChart", lang)}
+                        </button>
                     </div>
                 </div>
 
@@ -791,22 +789,45 @@ export function GrowthChart({
                 )}
             </div>
 
-            {showPrintPreview && isCDC && (
+            {showPrintPreview && (
                 <CDCPrintChart
                     gender={gender}
-                    chartType={effectiveChartType as "weight" | "height" | "bmi"}
+                    chartType={effectiveChartType}
+                    isCDC={isCDC}
                     measurements={measurements
                         .filter(m => {
-                            const val = effectiveChartType === "weight" ? m.weight : effectiveChartType === "height" ? m.height : m.bmi;
+                            let val: number | undefined;
+                            if (effectiveChartType === "weight" || effectiveChartType === "weightForHeight") val = m.weight;
+                            else if (effectiveChartType === "height") val = m.height;
+                            else if (effectiveChartType === "bmi") val = m.bmi;
+                            else if (effectiveChartType === "headCircumference") val = m.headCircumference;
+                            else if (effectiveChartType === "armCircumference") val = m.armCircumference;
+                            else if (effectiveChartType === "subscapularSkinfold") val = m.subscapularSkinfold;
+                            else if (effectiveChartType === "tricepsSkinfold") val = m.tricepsSkinfold;
+                            else val = m.weight;
                             return val !== undefined && val > 0;
                         })
-                        .map(m => ({
-                            ageMonths: m.ageMonths,
-                            value: (effectiveChartType === "weight" ? m.weight : effectiveChartType === "height" ? m.height : m.bmi) as number,
-                            date: m.date,
-                        }))}
+                        .map(m => {
+                            let val: number;
+                            if (effectiveChartType === "weight" || effectiveChartType === "weightForHeight") val = m.weight;
+                            else if (effectiveChartType === "height") val = m.height;
+                            else if (effectiveChartType === "bmi") val = m.bmi || 0;
+                            else if (effectiveChartType === "headCircumference") val = m.headCircumference || 0;
+                            else if (effectiveChartType === "armCircumference") val = m.armCircumference || 0;
+                            else if (effectiveChartType === "subscapularSkinfold") val = m.subscapularSkinfold || 0;
+                            else if (effectiveChartType === "tricepsSkinfold") val = m.tricepsSkinfold || 0;
+                            else val = m.weight;
+                            return {
+                                ageMonths: m.ageMonths,
+                                value: val,
+                                date: m.date,
+                                height: m.height,
+                                headCircumference: m.headCircumference,
+                            };
+                        })}
                     patient={patientName ? { name: patientName, dob: patientDob || "", mrn: patientMrn } : undefined}
                     onClose={() => setShowPrintPreview(false)}
+                    lang={lang}
                 />
             )}
         </>
