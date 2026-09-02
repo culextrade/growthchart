@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2 } from "lucide-react";
+import { Plus, User, Search, Trash2, X, Pencil, Check, Loader2, AlertTriangle } from "lucide-react";
 import { createPatient, updatePatient, deletePatient } from "../actions";
 import { calculateDetailedAge } from "@/lib/utils";
 import { LogoutButton } from "@/components/logout-button";
@@ -20,6 +20,17 @@ interface PatientData {
 
 export function DashboardClient({ patients, userName, userUsername, version }: { patients: PatientData[], userName: string, userUsername: string, version: string }) {
     const [searchQuery, setSearchQuery] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitModal, setSubmitModal] = useState<{
+        isOpen: boolean;
+        status: "loading" | "success" | "error";
+        patientName?: string;
+        message?: string;
+    }>({
+        isOpen: false,
+        status: "loading"
+    });
+    const formRef = useRef<HTMLFormElement>(null);
     const router = useRouter();
 
     const filteredPatients = useMemo(() => {
@@ -28,8 +39,131 @@ export function DashboardClient({ patients, userName, userUsername, version }: {
         return patients.filter(p => p.name.toLowerCase().includes(q));
     }, [patients, searchQuery]);
 
+    const handleAddPatient = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+
+        const form = e.currentTarget;
+        const formData = new FormData(form);
+        const name = (formData.get("name") as string)?.trim();
+        const dob = formData.get("dob") as string;
+
+        if (!name || !dob) {
+            return;
+        }
+
+        setIsSubmitting(true);
+        setSubmitModal({
+            isOpen: true,
+            status: "loading",
+            patientName: name,
+            message: "Sedang memproses dan mencatat identitas pasien ke sistem..."
+        });
+
+        try {
+            const res = await createPatient(formData);
+            if (res?.error) {
+                setSubmitModal({
+                    isOpen: true,
+                    status: "error",
+                    patientName: name,
+                    message: res.error
+                });
+                setIsSubmitting(false);
+            } else {
+                setSubmitModal({
+                    isOpen: true,
+                    status: "success",
+                    patientName: name,
+                    message: `Identitas pasien "${name}" berhasil dicatat.`
+                });
+                form.reset();
+                router.refresh();
+
+                // Auto-close modal after brief confirmation
+                setTimeout(() => {
+                    setSubmitModal(prev => ({ ...prev, isOpen: false }));
+                    setIsSubmitting(false);
+                }, 900);
+            }
+        } catch (err: unknown) {
+            setSubmitModal({
+                isOpen: true,
+                status: "error",
+                patientName: name,
+                message: err instanceof Error ? err.message : "Terjadi kendala saat menambahkan pasien baru. Silakan coba lagi."
+            });
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-muted/20 p-8">
+            {/* Loading & Status Pop-up Modal */}
+            {submitModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div 
+                        className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center transition-all scale-100"
+                        role="dialog"
+                        aria-modal="true"
+                    >
+                        {submitModal.status === "loading" && (
+                            <>
+                                <div className="relative mb-4 flex items-center justify-center">
+                                    <div className="absolute h-16 w-16 rounded-full bg-primary/20 animate-ping" />
+                                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary shadow-inner">
+                                        <Loader2 className="h-8 w-8 animate-spin" />
+                                    </div>
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800">Menyimpan Pasien</h3>
+                                <p className="mt-1 text-xs font-semibold text-primary">{submitModal.patientName}</p>
+                                <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                                    {submitModal.message || "Mohon tunggu sebentar, sistem sedang memvalidasi dan mencatat identitas pasien..."}
+                                </p>
+                                <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                                    <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                                    Layar dikunci untuk mencegah duplikasi data
+                                </div>
+                            </>
+                        )}
+
+                        {submitModal.status === "success" && (
+                            <>
+                                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-inner">
+                                    <Check className="h-8 w-8 stroke-[2.5]" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800">Berhasil Ditambahkan!</h3>
+                                <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                                    {submitModal.message}
+                                </p>
+                            </>
+                        )}
+
+                        {submitModal.status === "error" && (
+                            <>
+                                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 shadow-inner">
+                                    <AlertTriangle className="h-8 w-8 stroke-[2.5]" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800">Perhatian</h3>
+                                <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                                    {submitModal.message}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSubmitModal(prev => ({ ...prev, isOpen: false }));
+                                        setIsSubmitting(false);
+                                    }}
+                                    className="mt-5 w-full inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow hover:bg-slate-800 transition-colors"
+                                >
+                                    Tutup & Periksa Form
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <header className="mb-8 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <div>
@@ -41,21 +175,46 @@ export function DashboardClient({ patients, userName, userUsername, version }: {
                     </div>
 
                     <div className="flex gap-4 items-center">
-                        <form action={async (formData) => {
-                            const res = await createPatient(formData);
-                            if (res?.error) {
-                                alert(res.error);
-                            }
-                        }} className="flex gap-2 items-center">
-                            <input type="text" name="name" placeholder="Name" required className="px-3 py-2 border rounded text-sm" />
-                            <input type="date" name="dob" required className="px-3 py-2 border rounded text-sm" />
-                            <select name="gender" className="px-3 py-2 border rounded text-sm">
+                        <form ref={formRef} onSubmit={handleAddPatient} className="flex gap-2 items-center">
+                            <input 
+                                type="text" 
+                                name="name" 
+                                placeholder="Nama Pasien" 
+                                required 
+                                disabled={isSubmitting}
+                                className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-not-allowed" 
+                            />
+                            <input 
+                                type="date" 
+                                name="dob" 
+                                required 
+                                disabled={isSubmitting}
+                                className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-not-allowed" 
+                            />
+                            <select 
+                                name="gender" 
+                                disabled={isSubmitting}
+                                className="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
                                 <option value="male">Boy</option>
                                 <option value="female">Girl</option>
                             </select>
-                            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground shadow transition-colors hover:bg-primary/90">
-                                <Plus className="h-4 w-4" />
-                                Add
+                            <button 
+                                type="submit" 
+                                disabled={isSubmitting}
+                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-all hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed active:scale-95"
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <span>Menyimpan...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="h-4 w-4" />
+                                        <span>Add</span>
+                                    </>
+                                )}
                             </button>
                         </form>
                         <div className="h-8 w-px bg-border mx-1"></div>

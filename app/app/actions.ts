@@ -52,45 +52,93 @@ export async function getPatient(id: string) {
     });
 }
 
+interface SessionUser {
+    id: string;
+    tenant_id: string;
+    name?: string | null;
+    email?: string | null;
+    username?: string | null;
+    role?: string | null;
+}
+
+const pendingPatientCreations = new Set<string>();
+
 export async function createPatient(formData: FormData) {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) throw new Error("Unauthorized");
 
-    const name = toTitleCase(formData.get("name") as string);
-    const searchName = normalizePatientName(name);
-    const dob = new Date(formData.get("dob") as string);
-    const gender = formData.get("gender") as string;
+    const rawName = formData.get("name") as string;
+    const rawDob = formData.get("dob") as string;
+    const gender = (formData.get("gender") as string) || "male";
     const parentNameRaw = formData.get("parentName") as string;
-    const parentName = parentNameRaw ? toTitleCase(parentNameRaw) : null;
-    const tenant_id = (session.user as any).tenant_id;
 
-    // Duplicate Check using normalized name & Jakarta date representation
-    const candidates = await prisma.patient.findMany({
-        where: { tenant_id }
-    });
-
-    const duplicate = candidates.find(p => 
-        normalizePatientName(p.name) === searchName &&
-        getJakartaDateString(p.dob) === getJakartaDateString(dob)
-    );
-
-    if (duplicate) {
-        return { error: "Patient data with the same name and date of birth already exists." };
+    if (!rawName || !rawName.trim()) {
+        return { error: "Nama pasien wajib diisi." };
+    }
+    if (!rawDob) {
+        return { error: "Tanggal lahir wajib diisi." };
     }
 
-    await prisma.patient.create({
-        data: {
-            name,
-            dob,
-            gender,
-            parentName,
-            userId: (session.user as any).id,
-            tenant_id
-        },
-    });
+    const user = session.user as SessionUser;
+    const name = toTitleCase(rawName);
+    const searchName = normalizePatientName(name);
+    const dob = new Date(rawDob);
+    const parentName = parentNameRaw ? toTitleCase(parentNameRaw) : null;
+    const tenant_id = user.tenant_id;
 
-    revalidatePath("/dashboard");
-    return { success: true };
+    // Concurrency Lock: Prevent parallel double-click submissions
+    const submissionKey = `${tenant_id}:${searchName}:${getJakartaDateString(dob)}`;
+    if (pendingPatientCreations.has(submissionKey)) {
+        return { error: "Sedang memproses data pasien ini. Mohon tunggu sebentar..." };
+    }
+    pendingPatientCreations.add(submissionKey);
+
+    try {
+        // Optimized Duplicate Check: Only query DOB window (+/- 24 hours) with minimal fields
+        // This avoids pulling the entire tenant patient list into Node.js memory
+        const minDob = new Date(dob.getTime() - 24 * 60 * 60 * 1000);
+        const maxDob = new Date(dob.getTime() + 24 * 60 * 60 * 1000);
+
+        const candidates = await prisma.patient.findMany({
+            where: {
+                tenant_id,
+                dob: {
+                    gte: minDob,
+                    lte: maxDob,
+                }
+            },
+            select: {
+                id: true,
+                name: true,
+                dob: true
+            }
+        });
+
+        const duplicate = candidates.find(p => 
+            normalizePatientName(p.name) === searchName &&
+            getJakartaDateString(p.dob) === getJakartaDateString(dob)
+        );
+
+        if (duplicate) {
+            return { error: "Data pasien dengan nama dan tanggal lahir yang sama sudah terdaftar." };
+        }
+
+        const newPatient = await prisma.patient.create({
+            data: {
+                name,
+                dob,
+                gender,
+                parentName,
+                userId: user.id,
+                tenant_id
+            },
+        });
+
+        revalidatePath("/dashboard");
+        return { success: true, patientId: newPatient.id };
+    } finally {
+        pendingPatientCreations.delete(submissionKey);
+    }
 }
 
 export async function addMeasurement(patientId: string, formData: FormData) {
